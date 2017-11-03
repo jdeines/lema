@@ -1,0 +1,166 @@
+---
+title: "WIMAS Exploratory Analyses"
+author: "Jill Deines"
+date: "October 12, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: Exploratory analyses of the well data as they pertain to LEMA
+
+Secondary goal: Get familiar with the `sf` package, a new vector GIS package
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/01.05_WIMASexploratory/',
+                      cache = TRUE)
+```
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+library(sf)
+library(tidyverse)
+library(xtable)
+```
+
+## Load data files
+Includes formatted data from 01.05 and boundary shapefiles of interest
+
+```{r loadData}
+# directories
+gisDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries'
+wellDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/wellData/WIMAS_AnthonyCleaned_JillFormatted'
+
+# well data
+wimas <- read.csv(paste0(wellDir, '/WIMAS_1990-2016_gwPts_ksHpa.csv'))
+
+# boundaries of interest
+sheridan <- st_read(paste0(gisDir,'/Sheridan6_trace.shp'), quiet=TRUE)
+sheridan$Id <- 'Sheridan'
+
+gmds.ll <- st_read(paste0(gisDir, '/KS - GROUNDWATER_DISTRICTS.shp'),quiet = TRUE)
+KSrrca <- st_read(paste0(gisDir,'/RRCA-KS-upperOnly_aea.shp'),quiet = TRUE)
+```
+
+Normalize projections: let's work in EPSG:5070 to match my GEE work.
+
+Assuming well points are WGS84. That should be checked.
+
+```{r reproject}
+sheridan <- st_transform(sheridan, 5070)
+gmds <- st_transform(gmds.ll, 5070)
+KSrrca <- st_transform(KSrrca, 5070)
+
+# visualize
+plot(gmds[1], main='Some Regions', graticule = st_crs(gmds.ll), axes=TRUE)
+plot(KSrrca, add=TRUE)
+plot(sheridan, add=TRUE)
+
+# spatialize well data
+wimasLL <- st_as_sf(x = wimas,
+                      coords = c('LONGITUDE','LATITUDE'),
+                      crs = "+proj=longlat +datum=WGS84")
+wimas.aea <- st_transform(wimasLL, 5070)
+
+# subset 1 year of points for reasonable plotting
+wimasOne <- wimas.aea[wimas.aea$year == 2000,]
+
+# plot points
+plot(gmds[1], main='WIMAS points', graticule = st_crs(gmds.ll), axes=TRUE)
+plot(wimasOne[1], add=TRUE)
+```
+
+## Regional Trends
+
+### Sheridan 6
+
+* How many wells are there?
+* Can you see the 20% reduction in pumping from the LEMA?
+
+Note: for the moment I'm assume volume is in acre ft.
+
+```{r sheridan1}
+# extract points in sheridan
+wellsLema <- st_join(wimas.aea, sheridan) %>% filter(Id == 'Sheridan')
+
+# how many?
+length(unique(wellsLema$PDIV_ID))
+
+# plot wells
+plot(sheridan, main = '222 Wells in Sheridan 6')
+plot(wellsLema[wellsLema$year ==2000,1], add=TRUE, pch = 19)
+
+lemakey <- data.frame(year = 1990:2016,
+                      LEMA = c(rep('preLema',23), rep('lema',4)))
+
+wellsLema2 <- merge(wellsLema, lemakey)
+
+prepost <- wellsLema2 %>%
+  group_by(LEMA) %>%
+  summarize(meanVol = mean(volume, na.rm=T), 
+            meanAcres = mean(acres, na.rm=T),
+            meanDepth = mean(depth, na.rm=T))
+
+longg <- gather(prepost, key = dataset, value = value, meanVol:meanAcres)
+
+ggplot(longg, aes(x=LEMA, y = value)) + 
+  geom_bar(stat='identity') + facet_wrap(~dataset)
+```
+
+A more nuanced approach: build a linear model to predict LEMA years, and then compare. The purpose of this is to account for precipitation and general trends in decreasing irrigation depths.
+
+Check out trends
+
+```{r sheridanTimeSeries, fig.width=4.5}
+# plot all wells over time
+wellslong <- gather_(wellsLema2, key = 'variable', value = 'value', 
+                     c('acres','volume', 'depth'))
+
+# see acres and volume over time, all wells
+ggplot(wellslong, aes(x=year, y = value)) +
+  geom_line(aes(group = PDIV_ID), lwd=.5) +
+  facet_wrap(~variable, scales = 'free_y', nrow = 3) + 
+  theme_bw() + ggtitle('Sheridan Area, Depth, & Volume over time')
+
+# see acres and volume over time, all wells - boxplot!
+ggplot(wellslong, aes(x=year, y = value)) +
+  geom_boxplot(aes(group=year)) +
+  facet_wrap(~variable, scales = 'free_y', nrow = 3) + 
+  theme_bw() + ggtitle('Sheridan Area, Depth, & Volume over time')
+
+# plot volume vs acres
+ggplot(wellsLema2, aes(x=volume, y=acres, color=year)) +
+  geom_point() + ggtitle('Sheridan volume vs area')
+
+# depth over time
+ggplot(wellsLema2, aes(x=year, y=depth)) +
+  geom_boxplot(aes(group=year)) + ylab('depth (ft)')+
+  ggtitle('Sheridan depth over time')
+
+
+#  total over time
+summed <- wellsLema2 %>%
+  group_by(year) %>%
+  summarize(totalVol = sum(volume, na.rm=T), totalAcres = sum(acres, na.rm=T)) %>%
+  mutate(meandepth = totalVol/totalAcres)
+
+ggplot(summed, aes(x=totalVol, y=totalAcres, color=year)) +
+  geom_point() + ggtitle('Sheridan: Total volume vs total area')
+
+sumLong <- gather(summed, key = variable, value =value, totalVol:meandepth)
+
+ggplot(sumLong, aes(x=year, y = value)) +
+  geom_line() +
+  facet_wrap(~variable, scales = 'free_y', nrow = 3) + 
+  theme_bw() + ggtitle('Sheridan Total Volume & Area over time')
+```
+
+Many PDIV_ID's seem to go to zero on occasion - how will that affect a prediction?
+
+Maybe try mean depth ~ precip + year
+
+```{r depthModel}
+
+```
+

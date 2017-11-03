@@ -1,0 +1,194 @@
+---
+title: "SALUS Conceptual Model"
+author: "Jill Deines"
+date: "October 31, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: Look at input datasets and gauge number of SALUS models needed
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/01.05_WIMASexploratory/',
+                      cache = TRUE)
+```
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(rgdal)
+library(raster)
+library(ncdf4)
+library(sf)
+```
+
+# LEMA boundaries
+Load boundaries of interest
+
+```{r loadBounds}
+gisDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries'
+
+lema <- readOGR(gisDir, 'Sheridan6_trace', verbose = FALSE)
+gmd4.ll <- readOGR(paste0(gisDir,'/KS_GMD4.kml'), verbose=FALSE)
+counties <- readOGR(gisDir, 'Counties_RRCAextent_Clip', verbose = FALSE)
+
+# reproject
+wgs84proj <- "+proj=longlat +datum=WGS84"
+lema.ll <- spTransform(lema, CRS(wgs84proj))
+```
+
+
+# Weather Grid Options
+
+* NLDAS: 1/8 degree (...12.5km?)
+* GRIDMET: ~ 4km (1/24 degree)
+
+NLDAS template copied from script in RRB_Rcode project. GRIDMET information acquired from https://climate.northwestknowledge.net/METDATA/. I downloaded the elevation dataset provided on the same 4 km grid in order to extract the spatial grid.
+
+### extract gridmet grid
+
+```{r getGridmetGrid, eval=FALSE}
+# load elevation grid
+gridmetDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/weather/gridmet'
+elev <- raster(paste0(gridmetDir,'/metdata_elevationdata.nc'))
+
+# check out parameters
+elev
+```
+
+## Compare Grids
+
+### specify grid templates with cell number for future ID
+
+```{r makeGrids}
+# create a NLDAS raster grid template (full US) using grid specs
+adjust <- 0.0625 # half of the 1/8 degree grid
+nldasTemplate <- raster(nrow = 224, ncol = 464, crs = "+proj=longlat +datum=WGS84",
+                     extent(-124.9375 - adjust,     #ymin
+                            -67.0625 + adjust,      #ymax
+                            25.0625 - adjust,       #xmin
+                            52.9375 + adjust))      #xmax
+# assign grid ID's
+nldasTemplate[] <- 1:ncell(nldasTemplate)
+
+# create a Gridmet grid template
+metTemplate <- raster(nrow = 585, ncol = 1386, crs = "+proj=longlat +datum=WGS84",
+                     extent(-124.793,     #ymin
+                            -67.0439,      #ymax
+                            25.04224,       #xmin
+                            49.41686))      #xmax
+# assign grid ID's
+metTemplate[] <- 1:ncell(metTemplate)
+```
+
+### Clip grids to greater GMD4 area
+
+```{r clipToGMD}
+# crop to gmd
+metCrop <- crop(metTemplate, gmd4.ll)
+nldasCrop <- crop(nldasTemplate, gmd4.ll)
+
+# polygonize
+nldas.poly <- rasterToPolygons(nldasCrop)
+met.poly <- rasterToPolygons(metCrop)
+
+# view
+par(mar = c(0,0,0,0))
+plot(met.poly, lwd = .5)
+plot(nldas.poly, border = 'blue', add = TRUE, lwd = 2)
+plot(gmd4.ll, border = 'magenta', lwd = 2, add=TRUE)
+plot(lema.ll, border = 'red', lwd = 2, add=TRUE)
+```
+
+# Check out county lines
+
+```{r countyPlot}
+par(mar = c(0,0,0,0))
+plot(gmd4.ll, col = 'gray90', border = 'gray70')
+plot(counties, add = TRUE)
+plot(lema.ll, add = TRUE, col = 'indianred')
+```
+
+Holy moly, that's a small region! I'm thinking about doing those three counties fully within GMD4 in order to be able to validate yield estimates.
+
+What are those counties?
+
+```{r pickcounties}
+# add a buffer to GMD4
+gmdbuff <- st_as_sf(gmd4.ll) %>% 
+  st_transform(5070) %>%
+  st_buffer(5000) %>%
+  st_transform(4326)
+
+plot(gmdbuff[1], main = 'GMD4 5 km buffer')
+plot(gmd4.ll[1], add=TRUE, col = 'gray80')
+
+# intersect counties and GMD4
+gmdCounties <- st_as_sf(counties) %>% 
+  st_intersection(gmdbuff) %>%
+  mutate(COUNTYFP = factor(COUNTYFP))
+
+# # remove Colorado bits and re-factor fips
+# gmdCounties <- gmdCounties %>% 
+#   filter(abb == 'KS') %>%
+#   mutate(fips5 = factor(fips5))
+
+plot(gmdCounties['COUNTYFP'], main = 'Counties In Buffer', lty=0, key.pos=1)
+plot(gmd4.ll, col='transparent',add=TRUE, lty=2)
+```
+
+## Expand to Get 4 Counties
+Actually, belatedly decided to include a little extra area in order to have 4 full counties for validation - so, add the full polygon of Cheyenne County, KS (20023) with the 5 km buffer
+
+```{r addCheyenne}
+# extract Cheyenne
+chey <- st_as_sf(counties) %>% 
+  filter(fips5 == '20023') 
+
+# redo buffered region
+gmdAndCountyBuff <- st_as_sf(gmd4.ll) %>% 
+  st_union(chey) %>% 
+  st_transform(5070) %>%
+  st_buffer(5000) %>%
+  st_transform(4326)
+
+# get counties for new buffer
+gmd.4Counties <- st_as_sf(counties) %>% 
+  st_intersection(gmdAndCountyBuff) %>%
+  mutate(COUNTYFP = factor(COUNTYFP))
+
+# plot 
+plot(gmd.4Counties['COUNTYFP'], main = 'Counties In Buffer', lty=0, key.pos=1)
+plot(gmd4.ll, col='transparent',add=TRUE, lty=2)
+plot(lema.ll, col= 'transparent',add=TRUE)
+```
+
+## Export Boundary
+I'm going to make this my boundary to get unique climate-soil-crop-management combos. 
+
+```{r exportBounds}
+# get rid of data frame schlep
+gmdCountiesOut <- gmd.4Counties[,c('masterID','fips5','NAME','abb','geometry')]
+
+# and make a dissolved border too
+boundary <- st_union(gmdCountiesOut)
+boundary2 <- st_sf(masterID = 'gmd4_plus', geom = boundary)
+
+# # export
+# st_write(gmdCountiesOut, paste0(gisDir,'/GMD4_plus_byCounty.shp'))
+# st_write(boundary2, paste0(gisDir,'/GMD4_plus.shp'))
+```
+
+### Calculate region areas
+
+```{r areas}
+# what's that area?
+boundary2 %>% st_transform(5070) %>% st_area() 
+# what's that area?
+st_as_sf(gmd4.ll)%>% st_transform(5070) %>% st_area() 
+#what's that area?
+st_as_sf(lema.ll)%>% st_transform(5070) %>% st_area() 
+```
+

@@ -1,0 +1,63 @@
+---
+title: "WIMAS data exploration"
+author: "Jill Deines"
+date: "October 3, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: Investigate the cleaned WIMAS datasets available through collaborators (Haoyang and Anthony)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/01.00_wimaxExploration/')
+```
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+library(foreign)   # loads stata files v5-12
+library(readstata13) # self explanatory
+library(tidyverse) # for ggplot2, tidyr, dplyr
+```
+
+# Dataset Descriptions
+
+**Haoyang's Cleaned Dataset: 1991-2010**
+
+At Jill's June 2017 committee meeting, Jinhua mentioned that Haoyang had a cleaned WIMAS dataset we should start with to avoid effort duplication. In a June 27 email, Haoyang describes his cleaning:
+
+"The initial WIMAS data is somewhat confusing because the complex relationship between water rights and irrigation wells. We aggregate the data by water rights (based on certain assumptions) from 1991 to 2010."
+
+Haoyang has provided the raw data, cleaned data, and processing script, all in STATA formats.
+
+**Anthony's cleaned dataset: 1990-2016**
+
+* Raw data location: S:\Users\kendal30\Code\Code_Projects\2016\Kansas_WIMAS_Processing
+* Output geodatabase: S:/Users/kendal30/projectfiles/2017/wimaschp/kansaswimas2016.gdb
+
+Anthony's output has points clipped to the HPA with the following variables separated into different point shapefiles within a geodatabase in ArcGIS:
+
+* irrigated acres
+* irrigated crops
+* irrigated depth
+* irrigated volume
+* irrigation systems
+* water rights
+* points of diversion
+
+## Data Exploration: Haoyang
+Load raw and cleand data, see what it looks like
+
+```{r h1_cleaned}
+haoDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/wellData/WIMAS_HaoyangCleaned'
+
+# cleaned data
+hclean <- read.dta13(paste0(haoDir,'/final data/cleaned.dta'))
+
+# raw data
+hraw <- read.dta13(paste0(haoDir,'/raw data/allMerged.dta'))
+```
+
+
+

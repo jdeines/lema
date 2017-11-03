@@ -1,0 +1,116 @@
+---
+title: "LEMA Irrigation Trends"
+author: "Jill Deines"
+date: "September 25, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: Investigate trends in irrigated area over time in the Sheridan 6 LEMA compared to surrounding areas
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/00.1_irrTrends_aim/')
+```
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+library(tidyverse) # for ggplot2, tidyr, dplyr
+```
+
+## Irrigation Over Time
+
+### load RS estimates of irrigated area
+Counts of each class type were tallied for several administrative boundaries in GEE
+
+```{r loadGee}
+cellArea <- 30*30 # m^2
+
+regionsDir <- 'C:/Users/deinesji/Google Drive/GEE_AIM-RRB/GEE_LEMA/GEE_LEMA_tableExports'
+
+# regional areas -----------------------------------------------
+# get filenames
+files <- list.files(regionsDir, pattern="*_AIMRRB_irrigatedArea_majorBoundaries.csv")
+
+# read in to a single dataframe
+loadStats <- function(fileList){
+  datOut = as.data.frame(do.call(rbind, lapply(fileList, function(x) {
+              csv1 <- read.csv(paste0(regionsDir,'/',x))
+              csv1$year <- as.numeric(substr(x, start=1,stop=4))
+              return(csv1)
+           })))  
+  # convert cell count to area
+  datOut$irrigated_m2 <- datOut$X1 * cellArea
+  datOut$irrigated_km2 <- datOut$irrigated_m2 / 1000000
+  return(datOut)
+}
+
+all1 = loadStats(files)
+
+# reformat data
+all <- all1[,c('masterid','year','irrigated_m2','irrigated_km2','pr_ann')]
+names(all)[3:4] <- c('area_m2', 'area_km2')
+```
+
+### side note: pull out climate data
+get a file of climate and area to export
+
+```{r getclimate}
+regionsWanted <- c('sheridan6','KS_GMD4','RRCA_mod_KS_main')
+climate <- all1[all1$masterid %in% regionsWanted,
+                c('masterid','year','irrigated_km2','pr_ann','pr_early',
+                   'pr_grow','pdsi_ann','pdsi_grow')]
+# export
+outdir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/tabular'
+write.csv(climate, paste0(outdir,'/irrArea_climate_from_AIMRRB.csv'),
+          row.names=FALSE)
+```
+
+
+### Plot Preprocessing
+
+Extract regions wanted and calculate cumulative added and lost irrigation. Set some overly? complicated plot parameters
+
+```{r LEMAtrendsByLine}
+# extract regions to plot
+regionsWanted <- c('sheridan6','KS_GMD4','RRCA_mod_KS_main')
+regions0 <- all[all$masterid %in% regionsWanted,]
+
+# nice names
+key <- data.frame(masterid = c('sheridan6','KS_GMD4','RRCA_mod_KS_main'),
+                  region = c('Sheridan 6', 'GMD4', 'KS RRCA'))
+regions <- merge(regions0, key)
+
+# plots
+ggplot(regions, aes(x = year, y = area_km2, color=region)) +
+  geom_line() +
+  ylab('Irrigated Area (km^2)') + xlab('') +
+  theme_bw() + theme(legend.position = 'top',
+                     legend.title = element_blank())
+```
+
+```{r LemaTrendsFacet, fig.width=4.5, fig.height = 4.5}
+ggplot(regions, aes(x = year, y = area_km2)) +
+  geom_line() +
+  facet_wrap(~region, scales = "free_y", nrow = 3) +
+  ylab('Irrigated Area (km^2)') + xlab('') +
+  theme_bw() + theme(legend.position = 'top',
+                     legend.title = element_blank())
+
+ggplot(regions, aes(x = year, y = area_km2)) +
+  geom_line() + geom_smooth() +
+  facet_wrap(~region, scales = "free_y", nrow = 3) +
+  ylab('Irrigated Area (km^2)') + xlab('') +
+  theme_bw() + theme(legend.position = 'top',
+                     legend.title = element_blank())
+
+ggplot(regions, aes(x = year, y = area_km2)) +
+  geom_line() + stat_smooth(method = 'lm') +
+  facet_wrap(~region, scales = "free_y", nrow = 3) +
+  ylab('Irrigated Area (km^2)') + xlab('') +
+  theme_bw() + theme(legend.position = 'top',
+                     legend.title = element_blank())
+```
+
+
