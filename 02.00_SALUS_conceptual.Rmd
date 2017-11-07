@@ -10,7 +10,7 @@ output:
 Goal: Look at input datasets and gauge number of SALUS models needed
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.path='figure/01.05_WIMASexploratory/',
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.00_SALUS_bounds/',
                       cache = TRUE)
 ```
 
@@ -102,6 +102,7 @@ plot(gmd4.ll, border = 'magenta', lwd = 2, add=TRUE)
 plot(lema.ll, border = 'red', lwd = 2, add=TRUE)
 ```
 
+
 # Check out county lines
 
 ```{r countyPlot}
@@ -176,9 +177,14 @@ gmdCountiesOut <- gmd.4Counties[,c('masterID','fips5','NAME','abb','geometry')]
 boundary <- st_union(gmdCountiesOut)
 boundary2 <- st_sf(masterID = 'gmd4_plus', geom = boundary)
 
+# also export a projected boundary (nad83 conus albers)
+boundary2.aea <- boundary2 %>% st_transform(5070)
+
 # # export
 # st_write(gmdCountiesOut, paste0(gisDir,'/GMD4_plus_byCounty.shp'))
 # st_write(boundary2, paste0(gisDir,'/GMD4_plus.shp'))
+# st_write(boundary2.aea, paste0(gisDir,'/GMD4_plus_aea.shp'))
+
 ```
 
 ### Calculate region areas
@@ -191,4 +197,45 @@ st_as_sf(gmd4.ll)%>% st_transform(5070) %>% st_area()
 #what's that area?
 st_as_sf(lema.ll)%>% st_transform(5070) %>% st_area() 
 ```
+
+# Export NLDAS Grid for New Boundary Region
+
+## Export NLDAS grid
+In this week's silly exercise, I manually optimized a buffer on my gmd4+ buffered study region in order to have the boundary polygon cover all centroids of nldas grid cells in order to pull everything through on the crop/mask.
+
+```{r nldasOut}
+# buffer boundary to include cells whose centroid is outside boundary
+buffed <- boundary2.aea %>% st_buffer(10000) %>% st_transform(4326)
+buffed.spdf <- as(buffed, "Spatial")
+
+# crop nldas grid to new boundary and polygonize
+nldasCrop2 <- crop(nldasTemplate, buffed.spdf)
+nldas.poly2 <- rasterToPolygons(nldasCrop2)
+
+# rename grid cell column
+names(nldas.poly2) <- 'gridCell'
+
+# add centroids to interface with Lydia's version
+centroids <- st_as_sf(nldas.poly2) %>% 
+  st_centroid() 
+pts <- do.call(rbind, st_geometry(centroids))
+
+nldas.poly2$CENTROID_X <- pts[,1]
+nldas.poly2$CENTROID_Y <- pts[,2]
+
+# clip nldas polygons to precise study boundary
+nldasClipped <- st_as_sf(nldas.poly2) %>% st_intersection(boundary2)
+
+# vis
+plot(nldasClipped[1])
+plot(boundary2[1], col='transparent', add=TRUE, lty = 2, lwd = 2)
+
+#export
+outdir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/nldas_Jill'
+#st_write(nldasClipped, paste0(outdir, '/NLDAS_gridCells_gmd4p_clip.shp'))
+```
+
+That is cool. I'm going to make a new script/functions to extract the NLDAS grid cells and centroid coordinates for use in downloading the NLDAS data from Bruno's lab's server thingy, and auto combine with the elevation data.
+
+
 
