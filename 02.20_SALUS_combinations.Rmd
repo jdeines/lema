@@ -24,7 +24,7 @@ library(sf)
 # directory parameters
 
 ```{r directories}
-soilDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/soil'
+soilDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/soil'
 soilName <- 'ssurgo_gmd4p_wgs84'
 
 cdlDir <- 'C:/Users/deinesji/Google Drive/GEE_AIM-RRB/GEE_LEMA/cdl_vectors_lema'

@@ -1,0 +1,37 @@
+---
+title: "Salus Weather Generator"
+author: "Jill Deines"
+date: "November 6, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: Create SALUS weather input (.wdb.xml) using an automated approach that, based on a shapefile region of interest (roi): 
+
+* extracts NLDAS grid cell polygons with centroid coordinates as attribute data
+* clips this to the roi
+* joins mean elevation to each NLDAS grid cell
+* exports NLDAS polygons in the roi for downstream distribution of SALUS results
+* ...not sure the end point yet.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.00_SALUS_bounds/',
+                      cache = TRUE)
+```
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+library(dplyr)
+library(rgdal)
+library(raster)
+library(sf)
+```
+
+## User Variables and Directories
+
+```{r userVars}
+#boundaryShapefile <- 
+```
+
