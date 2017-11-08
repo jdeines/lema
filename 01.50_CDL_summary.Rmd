@@ -1,0 +1,187 @@
+---
+title: "Crop Type Breakdowns"
+author: "Jill Deines"
+date: "November 6, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: Summarize dominant crops in the LEMA project study area (greater GMD4 region)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/01.50_CDL_summary/',
+                      cache = TRUE)
+```
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(stringr)
+```
+
+### user variables
+
+```{r uservars}
+# cdl summaries by counties, sheridan
+rawDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/tabular/cdl_tables_lema'
+fileNameSuffix <- '_CDL_GMD4Plus_Sheridan_area_m2.csv'
+
+# cdlkey
+cdlkeyfile <-'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/tabular/cdl_tables_lema/CDL_key_2014.csv'
+
+# output data directory
+outDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/tabular'
+outFnameCounty <- 'CDL_byCounty_GMD4pClip_2006-2016.csv'
+outFnameSheridan <- 'CDL_SheridanTrace_2006-2016.csv'
+```
+
+# Load Data and Reformat to Tidy Dataframe
+CDL summaries (area of each class by polygons within the GMD4 Plus boundary - counties and Sheridan 6) were exported from Google Earth Engine using script
+in users/jdeines/default/lema
+
+Note: 2015 and 2015 have extra cdl class columns: 251,252,253. In all national metadata files for 2008 - 2016, these values are all NA. So, dropping columns. Most come with a 0 column which is nonsense, removing so all match. 2013 has a class 62 that is NA for all others, for 'pasture/grass', but no classified cells for this class, so removing that as well.
+
+```{r loadCDL}
+# get filenames
+files <- list.files(rawDir, pattern=paste0('*', fileNameSuffix))
+
+# read in to a single dataframe, removing junk columns and first dummy row
+dataAll <- as.data.frame(do.call(rbind, lapply(files, function(x) {
+  csv1 <- read.csv(paste0(rawDir,'/',x))
+  csv1 <- csv1[, -which(names(csv1)%in% c('system.index','.geo','X0','X62',
+                                          'X251','X252','X253'))]
+  csv1 <- csv1[-1,]    # remove dummy row
+})))  
+
+# add a crop type column using cdl key
+cdlkey <- read_csv(cdlkeyfile) %>% 
+  select(VALUE, CLASS_NAME) %>%
+  rename(cdlCode = VALUE, cdlClassName = CLASS_NAME)
+
+# convert to long data format, remove NA's, reformat cdlCodes, join with class name
+dataLong <- gather(dataAll, key = cdlCode, value = area_m2, X1:X92) %>%
+  filter(!is.na(area_m2)) %>%
+  mutate(cdlCode = as.numeric(substr(cdlCode, start = 2, 
+                                      stop = nchar(cdlCode))),
+         area_km2 = area_m2 * 1e-6) %>%
+  left_join(cdlkey)
+```
+
+## Split Dataset
+To ensure no area is double counted, I split out the Sheridan 6 polygon from the county numbers. The `masterid` column is split into relevant variables
+
+I'm pretty sure there are sometimes 2 entries in a year/crop class for Sheridan because it's a multipolygon. I condense these.
+
+```{r splitData}
+# Get the Sheridan dataset
+sheridan <- dataLong %>% 
+  filter(masterid == 'SheridanTrace') %>%
+  group_by(Year, cdlCode, cdlClassName) %>%   # reduce split poly to 1 yearly num
+  summarise(area_km2 = sum(area_km2)) %>%
+  arrange(Year, cdlCode) 
+
+write.csv(sheridan, row.names = FALSE, file = paste0(outDir,'/',outFnameSheridan))
+
+# And the county dataset
+gmd4.county <- dataLong %>%
+  filter(masterid != 'SheridanTrace') %>%
+  mutate(fips5 = str_extract(masterid,'[:digit:]+')) %>%
+  arrange(Year, fips5)
+
+write.csv(gmd4.county, row.names = FALSE, file = paste0(outDir,'/',outFnameCounty))
+```
+
+# Sheridan Stats
+What are the CDL classes that cover 95% of the area?
+
+```{r sheridan, fig.width = 5, fig.height = 3.5}
+# crops ever planted
+unique(sheridan$cdlClassName)
+
+# mean acres by crop
+cropMeans <- sheridan %>%
+  group_by(cdlClassName) %>%
+  summarise(meanArea_km2 = mean(area_km2)) %>%
+  arrange(-meanArea_km2) %>%
+  mutate(totalArea = sum(meanArea_km2),
+         cumArea = cumsum(meanArea_km2),
+         proportion = cumArea/totalArea)
+
+# check it
+head(cropMeans)
+
+# keep top classes only
+majorCrops <- cropMeans %>%
+  filter(proportion < 0.96)
+
+shortnames <- data.frame(cdlClassName = majorCrops$cdlClassName,
+                         Commodity = c('Corn','Grass','W. Wheat','Fallow',
+                                       'Sorghum','Soybeans'))
+majorCrops <- majorCrops %>% left_join(shortnames)
+
+# plot
+position <- majorCrops$Commodity
+ggplot(majorCrops, 
+       aes(x=Commodity, y=meanArea_km2)) +
+  geom_bar(stat='identity') + 
+  ylab(expression(paste('Area (',km^2,')',sep=''))) + 
+  scale_x_discrete(limits = position) +
+  ggtitle('Sheridan 6, 2006-2016 mean') + 
+  theme_bw() + theme(legend.title=element_blank(),
+                     axis.text=element_text(size=10),
+                     legend.text=element_text(size=10),
+                     axis.title=element_text(size=11),
+                     panel.grid.major = element_blank(),
+                     panel.grid.minor = element_blank())
+```
+
+# gmd4 stats
+again, what covers 95% of the area?
+
+NOTE: This is for the buffered study region, not strictly GMD4. I'll have to re-run the GEE script to get GMD4.
+
+```{r gmd4, fig.width = 5, fig.height=3.5}
+# crops ever planted
+unique(gmd4.county$cdlClassName)
+
+# mean acres by crop for the full gmd4 (ignore county bounds)
+gmd4Means <- gmd4.county %>%
+  group_by(Year, cdlClassName) %>%
+  summarise(area_km2 = sum(area_km2)) %>%  # get total across all counties by year
+  group_by(cdlClassName) %>%
+  summarise(meanArea_km2 = mean(area_km2)) %>%
+  arrange(-meanArea_km2) %>%
+  mutate(totalArea = sum(meanArea_km2),
+         cumArea = cumsum(meanArea_km2),
+         proportion = cumArea/totalArea)
+
+# check it
+head(gmd4Means)
+
+# keep top classes only
+majorCrops2 <- gmd4Means %>%
+  filter(proportion < 0.96)
+
+shortnames2 <- data.frame(cdlClassName = majorCrops2$cdlClassName,
+                         Commodity = c('Grass','W. Wheat','Corn','Fallow',
+                                       'Sorghum'))
+majorCrops2 <- majorCrops2 %>% left_join(shortnames2)
+
+# plot
+position <- majorCrops2$Commodity
+ggplot(majorCrops2, 
+       aes(x=Commodity, y=meanArea_km2)) +
+  geom_bar(stat='identity') + 
+  ylab(expression(paste('Area (',km^2,')',sep=''))) + 
+  scale_x_discrete(limits = position) +
+  ggtitle('GMD4 + buffer, 2006-2016 mean') + 
+  theme_bw() + theme(legend.title=element_blank(),
+                     axis.text=element_text(size=10),
+                     legend.text=element_text(size=10),
+                     axis.title=element_text(size=11),
+                     panel.grid.major = element_blank(),
+                     panel.grid.minor = element_blank())
+```
+
