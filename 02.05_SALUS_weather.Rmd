@@ -37,6 +37,9 @@ library(sf)
 library(lubridate)
 library(xml2)
 library(stringr)
+
+# for missing values
+library(zoo)
 ```
 
 # User Variables 
@@ -75,6 +78,13 @@ outXmlDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/nl
 ```{r userVars2}
 # sml dir (default: use one created in script)
 xmlDir <- outXmlDir
+
+# NLDAS date bounds
+startDate2 <- startDate
+endDate2 <- endDate
+
+# maximum number of missing values to fill
+maxFill <- 3
 
 # output directory 
 outCleanDir <- paste0(outXmlDir,'_cleaned')
@@ -238,27 +248,59 @@ for (i in 1:nrow(centroids)){
 # Clean NLDAS data
 Occasionally NLDAS has missing -9999 values. Current fill method: interpolate missing values.
 
+I currently check for any values < -98, since I'm not sure about the consistency of the no data flag, and it's incredibly unlikely any actual data values are that low.
+
 ```{r fillMissing}
 # get files
-files <- list.files(xmlDir, full.names=TRUE)
+files.long <- list.files(xmlDir, full.names=TRUE)
+files.short <- list.files(xmlDir)
+# number of front matter lines to skip 
+skipLines <- 7
 
 # process each in a loop
-for(m in 1:length(files)){
-  # load file and extract df
-  xml <- read_xml(files[m])
-  xml_children(xml)
-  blah <- xml_find_first(xml,"Stations")
-  xml_children(blah)
-  weather <- xml_find_first(blah,"Weather")
-  weatherAttr <- xml_attrs(weather)
-  weatherList <- as_list(weather)
+for(m in 1:length(files.long)){
   
-  library(XML)
-  test <- xmlParse(files[m])  
-  testList <- xmlToList(test)
-  stationList <- testList[['Stations']]
-  weather <- stationList[['Weather']]
-  wdf <- xmlToDataFrame(weather)
+  # count the number of days (aka, data rows)
+  daynum <- length(seq(as.Date(startDate2), as.Date(endDate2), by = 'days'))
+  cols <- c('Year','DOY','SRAD','Tmax','Tmin','Rain','DewP','Wind','PAR')
+  
+  # load the df part of the xmls
+  wdata <- read.table(files.long[m], sep = ',', col.names=cols,
+                      skip = skipLines, nrows=daynum)
+  # convert missing data flags to NA (anything -99 or less)
+  wdata[wdata < -98] <- NA
+  
+  # test for missing data, and update values if needed
+  if (sum(is.na(wdata$SRAD)) > 0 | sum(is.na(wdata$Tmax)) > 0 |
+      sum(is.na(wdata$Tmin)) > 0 | sum(is.na(wdata$Rain)) > 0) {
+    print('missing data, filling in')
+    
+    # fill in the values via linear interpolation
+    wdata <- wdata %>%
+      mutate(SRAD = zoo::na.approx(SRAD, maxgap = maxFill),
+             Tmax = zoo::na.approx(Tmax, maxgap = maxFill),
+             Tmin = zoo::na.approx(Tmin, maxgap = maxFill),
+             Rain = zoo::na.approx(Rain, maxgap = maxFill))
+    
+    # check for remaining NA's
+    if (sum(is.na(wdata$SRAD)) > 0 | sum(is.na(wdata$Tmax)) > 0 |
+    sum(is.na(wdata$Tmin)) > 0 | sum(is.na(wdata$Rain)) > 0) {
+      print(paste(files.short[m],'still missing data'))
+    }
+  }
+  
+  # write out new .xmls
+  
+  
+  
+  # write to file
+  fileConn<-file(paste0(outCleanDir,"/",files.short[m]))
+  
+  
+  writeLines(textElev, fileConn)
+  
+  
+  close(fileConn)
 }
 
 
