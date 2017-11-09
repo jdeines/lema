@@ -13,7 +13,8 @@ Goal: Create SALUS weather input (.wdb.xml) using an automated approach that, ba
 * clips this to the roi
 * joins mean elevation to each NLDAS grid cell
 * exports NLDAS polygons in the roi for downstream distribution of SALUS results
-* ...not sure the end point yet.
+* extracts NLDAS data from the SALUS-hosted web tool and updates the elevation data, exports to drive
+* re-loads weather wdb.xml's to clean -9999 missing values (linear interpolations)
 
 Future goal: turn this into a function in the salustools r package
 
@@ -38,7 +39,9 @@ library(xml2)
 library(stringr)
 ```
 
-## User Variables: Getting NLDAS Centroids
+# User Variables 
+
+### user variables: Getting NLDAS Centroids
 
 ```{r userVars1}
 # boundary shapefile 
@@ -53,7 +56,7 @@ outName_nldasPoly <- 'NLDAS_clipped_gmd4p.shp'
 outName_nldasText <- 'NLDAS_clipped_gmd4p_centroids_elev.csv'
 ```
 
-## User Variables: Downloading NLDAS data 
+### User Variables: Downloading NLDAS data 
 
 ```{r userVars2}
 # centroids file (default: use one created in first half of script)
@@ -65,6 +68,16 @@ endDate <- '2017-10-31'
 
 # output directories
 outXmlDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/nldas_Jill/nldas_wdb_xmls_gmd4p'
+```
+
+### User Variables: Cleaning NLDAS data
+
+```{r userVars2}
+# sml dir (default: use one created in script)
+xmlDir <- outXmlDir
+
+# output directory 
+outCleanDir <- paste0(outXmlDir,'_cleaned')
 ```
 
 **END USER dEFINED VARIABLES**
@@ -219,6 +232,35 @@ for (i in 1:nrow(centroids)){
   writeLines(textElev, fileConn)
   close(fileConn)
 }
+```
+
+
+# Clean NLDAS data
+Occasionally NLDAS has missing -9999 values. Current fill method: interpolate missing values.
+
+```{r fillMissing}
+# get files
+files <- list.files(xmlDir, full.names=TRUE)
+
+# process each in a loop
+for(m in 1:length(files)){
+  # load file and extract df
+  xml <- read_xml(files[m])
+  xml_children(xml)
+  blah <- xml_find_first(xml,"Stations")
+  xml_children(blah)
+  weather <- xml_find_first(blah,"Weather")
+  weatherAttr <- xml_attrs(weather)
+  weatherList <- as_list(weather)
+  
+  library(XML)
+  test <- xmlParse(files[m])  
+  testList <- xmlToList(test)
+  stationList <- testList[['Stations']]
+  weather <- stationList[['Weather']]
+  wdf <- xmlToDataFrame(weather)
+}
+
 
 ```
 
