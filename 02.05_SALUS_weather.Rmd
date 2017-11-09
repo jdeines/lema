@@ -289,17 +289,22 @@ for(m in 1:length(files.long)){
     }
   }
   
-  # write out new .xmls
-  
-  
+  # grab original header/footer xml material
+  topMatter <- readLines(files.long[m], n=7)
+  allMatter <- readLines(files.long[m])
+  bottomMatter <- allMatter[(skipLines+daynum+1):length(allMatter)]
   
   # write to file
   fileConn<-file(paste0(outCleanDir,"/",files.short[m]))
+  writeLines(topMatter, fileConn)
+  close(fileConn)
+  write.table(wdata, paste0(outCleanDir,"/",files.short[m]), append=TRUE, 
+              sep = ',', row.names=FALSE, col.names=FALSE)
+  cat(bottomMatter,file=paste0(outCleanDir,"/",files.short[m]), append=TRUE, sep='\n')
+
   
-  
-  writeLines(textElev, fileConn)
-  
-  
+  fileConn<-file(paste0(outCleanDir,"/",files.short[m]))
+  writeLines(bottomMatter, fileConn)
   close(fileConn)
 }
 
