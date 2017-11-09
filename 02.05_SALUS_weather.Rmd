@@ -15,8 +15,11 @@ Goal: Create SALUS weather input (.wdb.xml) using an automated approach that, ba
 * exports NLDAS polygons in the roi for downstream distribution of SALUS results
 * ...not sure the end point yet.
 
+Future goal: turn this into a function in the salustools r package
+
+
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.00_SALUS_bounds/',
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.05_SALUS_weather/',
                       cache = TRUE)
 ```
 
@@ -32,6 +35,170 @@ library(sf)
 ## User Variables and Directories
 
 ```{r userVars}
-#boundaryShapefile <- 
+# boundary shapefile 
+aoiFile <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries/GMD4_plus.shp'
+
+# nldas elevation data
+elevationDataFile <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/nldas_Jill/nldas_elevationLookup/NLDAS_meanElevationDataset_meters.txt'
+
+# output folder for clipped polygons and csv coordinates
+outDir_nldasSubset <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/nldas_Jill/nldas_centroidExtract'
+outName_nldasPoly <- 'NLDAS_clipped_gmd4p.shp'
+outName_nldasText <- 'NLDAS_clipped_gmd4p_centroids_elev.csv'
+```
+
+# Extract NLDAS Cell Centroids in Study Area
+
+## Create the NLDAS grid
+Raster parameters for NDLAS. gridID's assigned as cell numbers starting at upper left corner.
+
+```{r getGrid}
+# create a NLDAS raster grid template (full US) using grid specs
+adjust <- 0.0625 # half of the 1/8 degree grid
+nldasTemplate <- raster(nrow = 224, ncol = 464, crs = "+proj=longlat +datum=WGS84",
+                     extent(-124.9375 - adjust,     #ymin
+                            -67.0625 + adjust,      #ymax
+                            25.0625 - adjust,       #xmin
+                            52.9375 + adjust))      #xmax
+# assign grid ID's
+nldasTemplate[] <- 1:ncell(nldasTemplate)
+```
+
+## Clip NLDAS to Study Area
+Clip grid by a buffered boundary to ensure covering cell centroids, polygonize, calculate centroid coordinates, and intersect to get cells in boundary.
+
+Assigns grid cell IDs based on the buffered, cropped NLDAS subset.
+
+```{r nldasOut}
+# load boundary and project to a meters based projection
+boundary <- read_sf(aoiFile) %>% st_transform(4326)
+
+# buffer boundary to include cells whose centroid is outside boundary
+buffed <- boundary %>% st_transform(5070) %>% 
+  st_buffer(10000) %>% st_transform(4326)
+# convert class to interface with rasters
+buffed.spdf <- as(buffed, "Spatial")
+
+# crop nldas grid to new boundary and polygonize
+nldasCrop <- crop(nldasTemplate, buffed.spdf)
+# number nldas cells for study area?
+nldasCrop[] <- 1000:(1000+ncell(nldasCrop))
+
+nldas.poly <- rasterToPolygons(nldasCrop)
+
+# rename grid cell column
+names(nldas.poly) <- 'gridCell'
+
+# add centroids to interface with elevation table and data retriver
+centroids <- st_as_sf(nldas.poly) %>% 
+  st_centroid() 
+pts <- do.call(rbind, st_geometry(centroids))
+
+nldas.poly$CENTROID_X <- pts[,1]
+nldas.poly$CENTROID_Y <- pts[,2]
+
+# clip nldas polygons to precise study boundary
+nldasClipped <- st_as_sf(nldas.poly) %>% st_intersection(boundary)
+
+# vis
+plot(nldasClipped[1], key.pos=1)
+plot(boundary[1], col='transparent', add=TRUE, lty = 2, lwd = 2)
+```
+
+
+## Convert NLDAS Elevation Data to Grid
+SALUS needs weather station elevation, so I'm going to use NLDAS cell elevations.
+
+This mean elevation dataset was downloaded from the LDAS website at https://ldas.gsfc.nasa.gov/nldas/NLDASelevation.php
+
+Per the metadata there, it's a 1/8th degree resolution topographic dataset based on GTOPO30 Global 30 Arc Second (~1 km) Elevation Dataset
+
+```{r addElev}
+# load elevation table
+elevs <- read.table(elevationDataFile)
+names(elevs) <- c('Col','Row','Lat','Lon','meanElev')
+
+# make a lat/long column for matching
+elevs$coordsString <- paste0(elevs$Lat,elevs$Lon)
+nldasClipped$coordsString <- paste0(nldasClipped$CENTROID_Y,nldasClipped$CENTROID_X)
+
+# combine
+nldasClipped2 <- nldasClipped %>% left_join(elevs) 
+
+plot(nldasClipped2['meanElev'], key.pos=1, main = 'Mean Elevation (m)')
+```
+
+## Export
+Export both a polygon key for the NLDAS grid with locally numbered cells, and a csv file that can be fed into the NLDAS retrieval routine.
+
+```{r export, eval=FALSE}
+write_sf(nldasClipped2, paste0(outDir_nldasSubset,'/',outName_nldasPoly))
+
+# format for text export
+nldas.df <- as.data.frame(nldasClipped2) %>%
+  select(gridCell,CENTROID_X,CENTROID_Y,meanElev)
+write.csv(nldas.df, paste0(outDir_nldasSubset,'/',outName_nldasText), row.names=FALSE)
+```
+
+# Download NLDAS data for centroids
+This basically mimics Lydia Rill's `extract_NLDAS.py` script
+
+Overview:
+
+* loads NLDAS coordinates CSV generated in previous section
+* specifies the time frame of data to download
+* generates a request URL for [SALUS's online NLDAS interface](http://salusmodel.glg.msu.edu/NLDAS/) 
+* downloads and writes out the NLDAS time series for each NLDAS cell coordinate
+
+# some packages user vars to later transfer above
+```{r uservars2}
+library(lubridate)
+
+library(httr)
+library(jsonlite)
+
+# NLDAS date bounds
+startDate <- '2000-01-01'
+endDate <- '2017-10-31'
+```
+
+## 
+
+```{r loadCentroids}
+# load centroids
+centroids <- read.csv(paste0(outDir_nldasSubset,'/',outName_nldasText))
+
+# retrieval vars
+baseurl <- 'http://salusmodel.glg.msu.edu/NLDAS/NLDAS2.php?'
+
+# loop through centroid rows to send data retrieval url
+for (i in 1:nrow(centroids)){
+  # make query url
+  GETrequest <- paste0(baseurl,
+                       'lat=',    round(centroids$CENTROID_Y[i],4),
+                       '&lon=',   round(centroids$CENTROID_X[i],4),
+                       '&smon=',  sprintf("%02d",month(startDate)),
+                       '&sdom=',  sprintf("%02d",yday(startDate)),
+                       '&syear=', year(startDate),
+                       '&emon=',  sprintf("%02d",month(endDate)),
+                       '&edom=',  sprintf("%02d",yday(endDate)),
+                       '&eyear=', year(endDate),
+                       '&si=',    centroids$gridCell[i],
+                       '&sn=',    centroids$gridCell[i])
+  
+  # retrive data
+  req <- GET(GETrequest)
+  
+  # check status and throw stop/error: 200 means successful
+  stop_for_status(req)
+  
+  # extract content
+  extracted <- content(req)                  
+                       
+                                    
+                                    )
+  
+}
+
 ```
 

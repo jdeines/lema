@@ -201,7 +201,9 @@ st_as_sf(lema.ll)%>% st_transform(5070) %>% st_area()
 # Export NLDAS Grid for New Boundary Region
 
 ## Export NLDAS grid
-In this week's silly exercise, I manually optimized a buffer on my gmd4+ buffered study region in order to have the boundary polygon cover all centroids of nldas grid cells in order to pull everything through on the crop/mask.
+Clip grid by a buffered boundary to ensure covering cell centroids, polygonize, calculate coordinates, and intersect to get cells in boundary.
+
+This is now made more formally in 02.05_SALUS_weather.Rmd
 
 ```{r nldasOut}
 # buffer boundary to include cells whose centroid is outside boundary
@@ -231,7 +233,7 @@ plot(nldasClipped[1])
 plot(boundary2[1], col='transparent', add=TRUE, lty = 2, lwd = 2)
 
 #export
-outdir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/nldas_Jill'
+#outdir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/nldas_Jill'
 #st_write(nldasClipped, paste0(outdir, '/NLDAS_gridCells_gmd4p_clip.shp'))
 ```
 
