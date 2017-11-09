@@ -56,9 +56,18 @@ outName_nldasText <- 'NLDAS_clipped_gmd4p_centroids_elev.csv'
 ## User Variables: Downloading NLDAS data 
 
 ```{r userVars2}
+# centroids file (default: use one created in first half of script)
+centroidsFile <- paste0(outDir_nldasSubset,'/',outName_nldasText)
 
+# NLDAS date bounds
+startDate <- '2000-01-01'
+endDate <- '2017-10-31'
+
+# output directories
+outXmlDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/nldas_Jill/nldas_wdb_xmls_gmd4p'
 ```
 
+**END USER dEFINED VARIABLES**
 
 # Extract NLDAS Cell Centroids in Study Area
 
@@ -73,8 +82,8 @@ nldasTemplate <- raster(nrow = 224, ncol = 464, crs = "+proj=longlat +datum=WGS8
                             -67.0625 + adjust,      #ymax
                             25.0625 - adjust,       #xmin
                             52.9375 + adjust))      #xmax
-# assign grid ID's
-nldasTemplate[] <- 1:ncell(nldasTemplate)
+# # assign grid ID's
+# nldasTemplate[] <- 1:ncell(nldasTemplate)
 ```
 
 ## Clip NLDAS to Study Area
@@ -82,21 +91,24 @@ Clip grid by a buffered boundary to ensure covering cell centroids, polygonize, 
 
 Assigns grid cell IDs based on the buffered, cropped NLDAS subset.
 
-```{r nldasOut}
+```{r nldasOut, warning=FALSE}
 # load boundary and project to a meters based projection
 boundary <- read_sf(aoiFile) %>% st_transform(4326)
 
 # buffer boundary to include cells whose centroid is outside boundary
 buffed <- boundary %>% st_transform(5070) %>% 
   st_buffer(10000) %>% st_transform(4326)
+
 # convert class to interface with rasters
 buffed.spdf <- as(buffed, "Spatial")
 
 # crop nldas grid to new boundary and polygonize
 nldasCrop <- crop(nldasTemplate, buffed.spdf)
+
 # number nldas cells for study area?
 nldasCrop[] <- 1000:(1000+ncell(nldasCrop))
 
+# polygonize
 nldas.poly <- rasterToPolygons(nldasCrop)
 
 # rename grid cell column
@@ -119,7 +131,7 @@ plot(boundary[1], col='transparent', add=TRUE, lty = 2, lwd = 2)
 ```
 
 
-## Convert NLDAS Elevation Data to Grid
+## Add NLDAS elevation data 
 SALUS needs weather station elevation, so I'm going to use NLDAS cell elevations.
 
 This mean elevation dataset was downloaded from the LDAS website at https://ldas.gsfc.nasa.gov/nldas/NLDASelevation.php
@@ -144,17 +156,18 @@ plot(nldasClipped2['meanElev'], key.pos=1, main = 'Mean Elevation (m)')
 ## Export
 Export both a polygon key for the NLDAS grid with locally numbered cells, and a csv file that can be fed into the NLDAS retrieval routine.
 
-```{r export, eval=FALSE}
+```{r export}
+# a shapefile of the clipped NLDAS grid polygons
 write_sf(nldasClipped2, paste0(outDir_nldasSubset,'/',outName_nldasPoly))
 
 # format for text export
 nldas.df <- as.data.frame(nldasClipped2) %>%
-  select(gridCell,CENTROID_X,CENTROID_Y,meanElev)
+  dplyr::select(gridCell,CENTROID_X,CENTROID_Y,meanElev)
 write.csv(nldas.df, paste0(outDir_nldasSubset,'/',outName_nldasText), row.names=FALSE)
 ```
 
 # Download NLDAS data for centroids
-This basically mimics Lydia Rill's `extract_NLDAS.py` script
+This basically mimics Lydia Rill's `extract_NLDAS.py` script with the exception of automatically replacing elevation with the NLDAS cell mean elevations
 
 Overview:
 
@@ -165,26 +178,15 @@ Overview:
 * updates the elevation number to the NLDAS mean (since it's possible the Google tool hits its max daily quota) 
 * writes out the NLDAS time series for each NLDAS cell coordinate
 
-# some packages user vars to later transfer above
-```{r uservars2}
 
+```{r loadCentroids, eval=FALSE}
+# load centroids from above
+centroids <- read.csv(centroidsFile)
 
-
-# NLDAS date bounds
-startDate <- '2000-01-01'
-endDate <- '2017-10-31'
-```
-
-## 
-
-```{r loadCentroids}
-# load centroids
-centroids <- read.csv(paste0(outDir_nldasSubset,'/',outName_nldasText))
-
-# retrieval vars
+# salus nldas online tool 
 baseurl <- 'http://salusmodel.glg.msu.edu/NLDAS/NLDAS2.php?'
 
-# loop through centroid rows to send data retrieval url
+# loop through centroid rows to get, clean, export .wdb.xml's
 for (i in 1:nrow(centroids)){
   # make query url
   GETrequest <- paste0(baseurl,
@@ -207,13 +209,15 @@ for (i in 1:nrow(centroids)){
   textClean <- str_sub(text, char_first, char_last)
   
   # replace elevation data
-  
+  nldasElev <- round(centroids$meanElev[i],2)
+  textElev <- str_replace(textClean,
+                          'Elev="([\\d]+).([\\d]+)"',
+                          paste0('Elev="',nldasElev,'"'))
   
   # write to file
-  fileConn<-file(paste0(outDir_nldasSubset,"/output.txt"))
-  writeLines(textClean, fileConn)
+  fileConn<-file(paste0(outXmlDir,"/",centroids$gridCell[i],".wdb.xml"))
+  writeLines(textElev, fileConn)
   close(fileConn)
-
 }
 
 ```
