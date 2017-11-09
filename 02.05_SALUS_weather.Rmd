@@ -75,7 +75,7 @@ outXmlDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/nl
 
 ### User Variables: Cleaning NLDAS data
 
-```{r userVars2}
+```{r userVars3}
 # sml dir (default: use one created in script)
 xmlDir <- outXmlDir
 
@@ -250,7 +250,7 @@ Occasionally NLDAS has missing -9999 values. Current fill method: interpolate mi
 
 I currently check for any values < -98, since I'm not sure about the consistency of the no data flag, and it's incredibly unlikely any actual data values are that low.
 
-```{r fillMissing}
+```{r fillMissing, eval=FALSE}
 # get files
 files.long <- list.files(xmlDir, full.names=TRUE)
 files.short <- list.files(xmlDir)
@@ -301,13 +301,7 @@ for(m in 1:length(files.long)){
   write.table(wdata, paste0(outCleanDir,"/",files.short[m]), append=TRUE, 
               sep = ',', row.names=FALSE, col.names=FALSE)
   cat(bottomMatter,file=paste0(outCleanDir,"/",files.short[m]), append=TRUE, sep='\n')
-
-  
-  fileConn<-file(paste0(outCleanDir,"/",files.short[m]))
-  writeLines(bottomMatter, fileConn)
-  close(fileConn)
 }
-
 
 ```
 
