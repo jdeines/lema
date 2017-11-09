@@ -26,15 +26,21 @@ knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.05_SALUS_weather/',
 **R Packages Needed**
 
 ```{r packages, warning=FALSE, message=FALSE}
+# to get nldas polygons and centroids for region of interest
 library(dplyr)
 library(rgdal)
 library(raster)
 library(sf)
+
+# for nldas data downloading
+library(lubridate)
+library(xml2)
+library(stringr)
 ```
 
-## User Variables and Directories
+## User Variables: Getting NLDAS Centroids
 
-```{r userVars}
+```{r userVars1}
 # boundary shapefile 
 aoiFile <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries/GMD4_plus.shp'
 
@@ -46,6 +52,13 @@ outDir_nldasSubset <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/w
 outName_nldasPoly <- 'NLDAS_clipped_gmd4p.shp'
 outName_nldasText <- 'NLDAS_clipped_gmd4p_centroids_elev.csv'
 ```
+
+## User Variables: Downloading NLDAS data 
+
+```{r userVars2}
+
+```
+
 
 # Extract NLDAS Cell Centroids in Study Area
 
@@ -148,14 +161,14 @@ Overview:
 * loads NLDAS coordinates CSV generated in previous section
 * specifies the time frame of data to download
 * generates a request URL for [SALUS's online NLDAS interface](http://salusmodel.glg.msu.edu/NLDAS/) 
-* downloads and writes out the NLDAS time series for each NLDAS cell coordinate
+* downloads and formats xml
+* updates the elevation number to the NLDAS mean (since it's possible the Google tool hits its max daily quota) 
+* writes out the NLDAS time series for each NLDAS cell coordinate
 
 # some packages user vars to later transfer above
 ```{r uservars2}
-library(lubridate)
 
-library(httr)
-library(jsonlite)
+
 
 # NLDAS date bounds
 startDate <- '2000-01-01'
@@ -181,23 +194,26 @@ for (i in 1:nrow(centroids)){
                        '&sdom=',  sprintf("%02d",yday(startDate)),
                        '&syear=', year(startDate),
                        '&emon=',  sprintf("%02d",month(endDate)),
-                       '&edom=',  sprintf("%02d",yday(endDate)),
+                       '&edom=',  sprintf("%02d",day(endDate)),
                        '&eyear=', year(endDate),
                        '&si=',    centroids$gridCell[i],
                        '&sn=',    centroids$gridCell[i])
   
   # retrive data
-  req <- GET(GETrequest)
+  request <- read_xml(GETrequest)
+  text <- xml_text(request)
+  char_first <- str_locate(text, '<WDB>')[1] 
+  char_last <- str_locate(text, '</WDB>')[2]
+  textClean <- str_sub(text, char_first, char_last)
   
-  # check status and throw stop/error: 200 means successful
-  stop_for_status(req)
+  # replace elevation data
   
-  # extract content
-  extracted <- content(req)                  
-                       
-                                    
-                                    )
   
+  # write to file
+  fileConn<-file(paste0(outDir_nldasSubset,"/output.txt"))
+  writeLines(textClean, fileConn)
+  close(fileConn)
+
 }
 
 ```
