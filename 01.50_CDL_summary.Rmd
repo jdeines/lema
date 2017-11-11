@@ -119,7 +119,9 @@ majorCrops <- cropMeans %>%
 shortnames <- data.frame(cdlClassName = majorCrops$cdlClassName,
                          Commodity = c('Corn','Grass','W. Wheat','Fallow',
                                        'Sorghum','Soybeans'))
-majorCrops <- majorCrops %>% left_join(shortnames)
+majorCrops <- majorCrops %>% 
+  left_join(shortnames) %>%
+  left_join(cdlkey)
 
 # plot
 position <- majorCrops$Commodity
@@ -135,6 +137,8 @@ ggplot(majorCrops,
                      axis.title=element_text(size=11),
                      panel.grid.major = element_blank(),
                      panel.grid.minor = element_blank())
+
+majorCrops
 ```
 
 # gmd4 stats
@@ -167,7 +171,9 @@ majorCrops2 <- gmd4Means %>%
 shortnames2 <- data.frame(cdlClassName = majorCrops2$cdlClassName,
                          Commodity = c('Grass','W. Wheat','Corn','Fallow',
                                        'Sorghum'))
-majorCrops2 <- majorCrops2 %>% left_join(shortnames2)
+majorCrops2 <- majorCrops2 %>% 
+  left_join(shortnames2) %>%
+  left_join(cdlkey)
 
 # plot
 position <- majorCrops2$Commodity
@@ -183,5 +189,6 @@ ggplot(majorCrops2,
                      axis.title=element_text(size=11),
                      panel.grid.major = element_blank(),
                      panel.grid.minor = element_blank())
+majorCrops2
 ```
 
