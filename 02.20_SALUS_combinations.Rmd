@@ -17,6 +17,8 @@ knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.20_salus_combos/',
 **R Packages Needed**
 
 ```{r packages, warning=FALSE, message=FALSE}
+library(rgdal)
+library(raster)
 library(tidyverse)
 library(sf)
 ```
@@ -24,20 +26,80 @@ library(sf)
 # directory parameters
 
 ```{r directories}
-soilDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/soil'
-soilName <- 'ssurgo_gmd4p_wgs84'
+# root salus data directory
+rootDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus'
 
-cdlDir <- 'C:/Users/deinesji/Google Drive/GEE_AIM-RRB/GEE_LEMA/cdl_vectors_lema'
-cdlName <- '2015_CDL_gmd4PlusClips_vector60.geojson'
+# soil inputs
+soilDir <- 'soil'
+soilPolyName <- 'ssurgo_gmd4p_wgs84'
+
+# crop type inputs
+cdlDir <- 'cdl/cdl_rasters_lema'
+cdlNameSuffix <- '_CDL_gmd4PlusClips_aea.tif'
+
+# weather grid inputs
+weatherDir <- 'weather\nldas_Jill\nldas_centroidExtract'
+weatherPolyName <- 'NLDAS_clipped_gmd4p'
+
+# irrigation map inputs
+irrDir <- 'irrigationMaps'
+irrNameSuffix <- '_gmd4plus_AIM-RRB_aea.tif'
+
+# state polygons to split soils by
+statesDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries'
+statesName <- 'States_continental'
+
+# study area boundary
+
 ```
 
 
-# test load soil export
+# Static datasets
+Soil and climate grid cell don't change over time. First, add these two together.
+
+## load target grid
+Each dataset needs to be reprojected to the same raster grid. I used the CDL grid as the target.
+
+```{r makeGrid}
+aeaProj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
+template <- raster(nrow = 4359, ncol = 7108, crs = aeaProj,
+                    xmn = -522870, xmx = -309630, ymn = 1777860, 
+                    ymx = 1908630) 
+template[] <- 1:ncell(template)
+```
+
+## Soil: 
+Load soil mukey polygons, append a state code to the mukeys, and sample to the raster grid
 
 ```{r loadsoil}
-mukeys <- st_read(paste0(soilDir,'/',soilName,'.shp'))
-nrow(mukeys)
-length(unique(mukeys$MUKEY))
+# load 
+mukeys <- read_sf(paste0(rootDir,'/',soilDir,'/',soilPolyName,'.shp'))
+
+# how long is longest mukey - this makes me laugh
+maxdigits <- nchar(as.character(max(as.numeric(mukeys$MUKEY))))
+
+# append a state code to each mukey to result in uniform length
+fipsKey <- data.frame(state = c('CO','KS','NE'),
+                      fips2 = c(8, 20, 31))
+fipsKey$fips2 <- fipsKey$fips2 * 1*10^maxdigits
+
+mukeys <- mukeys %>%
+  mutate(state = substr(AREASYMBOL, 1,2)) %>% # extract state abbrev
+  left_join(fipsKey) %>%                      # join fips
+  mutate(MUKEY = as.numeric(MUKEY),
+         stateMukey = MUKEY + fips2) %>%       # enhanced key!
+  select(-c(SPATIALVER,Shape_Leng,Shape_Area)) # dump extra stuff
+
+# put on the template grid
+mukeys.spdf <- as(mukeys, 'Spatial')
+mukeys.spdf <- spTransform(mukeys.spdf, CRS(aeaProj))
+
+soilGrid <- rasterize(mukeys.spdf, template, field='stateMukey',background=NA)
+
+
+
+# export for downstream use
+writeRaster(soilGrid, paste0(rootDir,'/',soilDir,'/ssurgo_gmd4p_aea30.tif'))
 ```
 
 455 unique soil types 
@@ -45,7 +107,7 @@ length(unique(mukeys$MUKEY))
 # load test cdl
 
 ```{r loadcdl}
-cdltest <- st_read(paste0(cdlDir,'/',cdlName))
+cdltest2 <- raster(paste0(cdlDir,'/',cdlName))
 nrow(cdltest)
 length(unique(cdltest$class))
 ```
