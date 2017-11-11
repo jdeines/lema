@@ -11,7 +11,7 @@ Goal: Create SALUS experiment combinations: unique soil-climate-crop-irrigation 
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.20_salus_combos/',
-                      cache = TRUE)
+                      cache = TRUE, cache.path='cache/02.20_salus_combos/')
 ```
 
 **R Packages Needed**
@@ -38,19 +38,20 @@ cdlDir <- 'cdl/cdl_rasters_lema'
 cdlNameSuffix <- '_CDL_gmd4PlusClips_aea.tif'
 
 # weather grid inputs
-weatherDir <- 'weather\nldas_Jill\nldas_centroidExtract'
+weatherDir <- 'weather/nldas_Jill/nldas_centroidExtract'
 weatherPolyName <- 'NLDAS_clipped_gmd4p'
 
 # irrigation map inputs
 irrDir <- 'irrigationMaps'
 irrNameSuffix <- '_gmd4plus_AIM-RRB_aea.tif'
 
-# state polygons to split soils by
-statesDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries'
-statesName <- 'States_continental'
+# bounding poly
+gisDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries'
+boundName <- 'GMD4_plus_aea'
 
-# study area boundary
-
+# static grid export names
+comboDir <- 'combinationGrids'
+comboStaticName <- 'StaticVars_gmd4p_aea30.tif'
 ```
 
 
@@ -71,9 +72,11 @@ template[] <- 1:ncell(template)
 ## Soil: 
 Load soil mukey polygons, append a state code to the mukeys, and sample to the raster grid
 
-```{r loadsoil}
+```{r gridsoil}
 # load 
 mukeys <- read_sf(paste0(rootDir,'/',soilDir,'/',soilPolyName,'.shp'))
+# how many soil types?
+length(unique(mukeys$MUKEY))
 
 # how long is longest mukey - this makes me laugh
 maxdigits <- nchar(as.character(max(as.numeric(mukeys$MUKEY))))
@@ -96,15 +99,65 @@ mukeys.spdf <- spTransform(mukeys.spdf, CRS(aeaProj))
 
 soilGrid <- rasterize(mukeys.spdf, template, field='stateMukey',background=NA)
 
+# tidy up the edges (soil polys extend beyond boundary)
+bound <- readOGR(gisDir, boundName,verbose=FALSE)
+proj4string(bound) <- proj4string(soilGrid)  # already same proj, just needs datum
+soilGridMask <- mask(soilGrid, bound)
 
+spplot(soilGridMask)
 
 # export for downstream use
-writeRaster(soilGrid, paste0(rootDir,'/',soilDir,'/ssurgo_gmd4p_aea30.tif'))
+#writeRaster(soilGridMask, paste0(rootDir,'/',soilDir,'/ssurgo_gmd4p_aea30_mask.tif'))
 ```
 
-455 unique soil types 
+455 unique soil types (probably a bit more once split by state)
 
-# load test cdl
+## Weather
+Similarly, sample the weather polygons to the template raster grid
+
+```{r gridWeather}
+# load weather
+weatherPoly <- readOGR(paste0(rootDir,'/',weatherDir), weatherPolyName, verbose = F)
+weatherPoly <- spTransform(weatherPoly, CRS(aeaProj))
+
+# unique gridcells
+length(unique(weatherPoly$gridCll))
+
+# rasterize
+weatherGrid <- rasterize(weatherPoly, template, field='gridCll',background=NA)
+spplot(weatherGrid)
+
+#writeRaster(soilGridMask, paste0(rootDir,'/',weatherDir,'/NLDAS_gmd4p_aea30.tif'))
+```
+
+137 unique weather grid cells from NLDAS
+
+## Static Soil & Weather type raster
+Combine soil and weather along with padded zeros for easy addition of crop/irrigation status in downstream step.
+
+```{r staticGrid}
+# add 8 zeros to the soil grid
+static0 <- soilGridMask * 1e8
+
+# add 4 zeros to the weather grid
+weatherPadded <- weatherGrid * 1e4
+
+# static master grid!
+static <- static0 + weatherPadded
+
+spplot(static, main = 'static soil/weather key')
+
+# write out static grid
+# static grid export names
+comboDir <- 'combinationGrids'
+comboStaticName <- 'StaticVars_gmd4p_aea30.tif'
+#writeRaster(static, paste(rootDir, comboDir, comboStaticName, sep='/'))
+```
+
+
+
+# Dynamic SALUS Combo Maps.
+Irrigation status and Crop type change annually. Combine annual CDL/irrigation status with the static soil/weather raster.
 
 ```{r loadcdl}
 cdltest2 <- raster(paste0(cdlDir,'/',cdlName))
