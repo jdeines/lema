@@ -55,6 +55,8 @@ boundName <- 'GMD4_plus_aea'
 # static grid export names
 comboDir <- 'combinationGrids'
 comboStaticName <- 'StaticVars_gmd4p_aea30.tif'
+comboDynamicName <- '_gmd4p_combos_top6_aea30.tif'
+comboMasterFile <- 'gmd4p_combos_top6_master.RData'
 ```
 
 
@@ -165,6 +167,11 @@ Irrigation status and Crop type change annually. Combine annual CDL/irrigation s
 # load static variable base raster
 static <- raster(paste(rootDir, comboDir, comboStaticName, sep='/'))
 
+# output df for combos
+annualCombos <- setNames(data.frame(matrix(ncol = length(yearsWanted), 
+                                           nrow=ncell(static))),
+                         c(paste0('x',yearsWanted)))
+
 for(year in yearsWanted){
   # cdl and irrigation annual files
   cdlName <- paste0(rootDir, '/', cdlDir, '/', year, cdlNameSuffix)  
@@ -181,16 +188,21 @@ for(year in yearsWanted){
   cdlpad <- cdl*10
   cdlIrr <- cdlpad + irrigation
   
-  # how much irrigated grassland?
-  impastable <- freq(cdlIrr, value = 1761)
-  naCells <- freq(cdlIrr, value = NA)
-  length(cdlIrr[values(cdlIrr)!="NA"])
+  # # how much irrigated grassland? for 2016, 0.016%
+  # impossible <- freq(cdlIrr, value = 1761)
+  # naCells <- freq(cdlIrr, value = NA)
+  # percentImpossible <- impossible/(ncell(cdlIrr)-naCells)
   
+  # combo raster and export
+  combo <- static + cdlIrr
+  writeRaster(combo, paste0(rootDir, '/', comboDir, '/', year, comboDynamicName))
   
-  combo <- static + cdlpad + irrigation
-  
-  spplot(combo)
+  # turn to vector, by row
+  colNam <- paste0('x',year)
+  annualCombos[,colNam] <- as.vector(t(as.matrix(combo)))
 }
+
+# save combo master
+save(annualCombos, file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
 ```
 
-31 unique crop classes in 2015
