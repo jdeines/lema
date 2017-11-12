@@ -57,6 +57,8 @@ comboDir <- 'combinationGrids'
 comboStaticName <- 'StaticVars_gmd4p_aea30.tif'
 comboDynamicName <- '_gmd4p_combos_top6_aea30.tif'
 comboMasterFile <- 'gmd4p_combos_top6_master.RData'
+allUnique <- 'allUnique_gmd4p_top6_2006-2016.csv'
+annualUnique <- 'annualUnique_gmd4p_top6_2006-2016.RData'
 ```
 
 
@@ -163,7 +165,7 @@ comboStaticName <- 'StaticVars_gmd4p_aea30.tif'
 Irrigation status and Crop type change annually. Combine annual CDL/irrigation status with the static soil/weather raster.
 
 
-```{r combos}
+```{r combos, eval=FALSE}
 # load static variable base raster
 static <- raster(paste(rootDir, comboDir, comboStaticName, sep='/'))
 
@@ -204,5 +206,24 @@ for(year in yearsWanted){
 
 # save combo master
 save(annualCombos, file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
+```
+
+# Get Unique Experiments
+Get unique combinations. I think I'm going to get the unique ones across the full time period, and run each for all years, to simplify having to specify what years to run for each experiment. maybe? maybe not. I don't know.
+
+```{r unique, eval=FALSE}
+# load
+load(file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
+
+# get all unique combos
+uniques <- apply(annualCombos, 2, function(x) unique(x))
+
+# get total unique across all years
+combo.long <- gather(annualCombos, key = year, value = combo, x2006:x2016) 
+allUniques <- unique(combo.long$combo)
+
+# save both of these
+write.csv(allUniques, row.names = F, file = paste0(rootDir, '/', comboDir, '/', allUnique))
+save(uniques, file = paste0(rootDir, '/', comboDir, '/', annualUnique))
 ```
 
