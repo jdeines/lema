@@ -23,9 +23,12 @@ library(tidyverse)
 library(sf)
 ```
 
-# directory parameters
+# user parameters
 
 ```{r directories}
+# years
+yearsWanted <- 2006:2016
+
 # root salus data directory
 rootDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus'
 
@@ -35,7 +38,7 @@ soilPolyName <- 'ssurgo_gmd4p_wgs84'
 
 # crop type inputs
 cdlDir <- 'cdl/cdl_rasters_lema'
-cdlNameSuffix <- '_CDL_gmd4PlusClips_aea.tif'
+cdlNameSuffix <- '_CDL_gmd4PlusClips_aea_top6.tif'
 
 # weather grid inputs
 weatherDir <- 'weather/nldas_Jill/nldas_centroidExtract'
@@ -154,15 +157,40 @@ comboStaticName <- 'StaticVars_gmd4p_aea30.tif'
 #writeRaster(static, paste(rootDir, comboDir, comboStaticName, sep='/'))
 ```
 
-
-
 # Dynamic SALUS Combo Maps.
 Irrigation status and Crop type change annually. Combine annual CDL/irrigation status with the static soil/weather raster.
 
-```{r loadcdl}
-cdltest2 <- raster(paste0(cdlDir,'/',cdlName))
-nrow(cdltest)
-length(unique(cdltest$class))
+
+```{r combos}
+# load static variable base raster
+static <- raster(paste(rootDir, comboDir, comboStaticName, sep='/'))
+
+for(year in yearsWanted){
+  # cdl and irrigation annual files
+  cdlName <- paste0(rootDir, '/', cdlDir, '/', year, cdlNameSuffix)  
+  irrName <- paste0(rootDir, '/', irrDir, '/', year, irrNameSuffix)
+  
+  # load
+  irrigation <- raster(irrName)
+  cdl <- raster(cdlName)
+  
+  # fix the cdl mask exported from GEE (mask 0 values)
+  cdl[cdl < 1] <- NA 
+  
+  # combine with irrigation and eliminate impossibilities
+  cdlpad <- cdl*10
+  cdlIrr <- cdlpad + irrigation
+  
+  # how much irrigated grassland?
+  impastable <- freq(cdlIrr, value = 1761)
+  naCells <- freq(cdlIrr, value = NA)
+  length(cdlIrr[values(cdlIrr)!="NA"])
+  
+  
+  combo <- static + cdlpad + irrigation
+  
+  spplot(combo)
+}
 ```
 
 31 unique crop classes in 2015
