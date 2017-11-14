@@ -205,7 +205,7 @@ for(year in yearsWanted){
 }
 
 # save combo master
-save(annualCombos, file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
+#save(annualCombos, file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
 ```
 
 # Get Unique Experiments
