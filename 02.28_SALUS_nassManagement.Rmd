@@ -24,6 +24,8 @@ knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.28_salus_management/',
 # for API interaction
 library(httr) 
 library(jsonlite)
+library(tidyverse)
+library(lubridate)
 ```
 
 ** Directories **
@@ -100,7 +102,10 @@ getPlantingDate <- function(apikey, commodity, shortDesc, state, year){
 
 # Get data
 
-## Planting Dates
+## Planting, Maturity, Harvest Dates
+Different date variables (planting, maturity, harvest) are specified in the `cropsWanted` dataframe created below. It's a bit weird but kinda grew organically out of control. Whatevs, it works. Maybe someday the user can just specify a string of short descriptions to get, but they do vary by crop type a bit so eh. 
+
+Short descriptions retrieved from the quickstats.nass.usda.gov manual interface
 
 ```{r getDates, eval=FALSE}
 # planting date arguments
@@ -108,18 +113,36 @@ apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
 state <- 'KANSAS'
 year <- 2006
 
-# crops wanted and their short description (wheat complicates)
-dataItemBase <- ' - PROGRESS, MEASURED IN PCT PLANTED'
-cropsWanted <- data.frame(crop = c('CORN','WHEAT','SORGHUM','SOYBEANS'),
-                          short = c(paste0('CORN', dataItemBase),
-                                    paste0('WHEAT, WINTER', dataItemBase),
-                                    paste0('SORGHUM', dataItemBase),
-                                    paste0('SOYBEANS', dataItemBase)))
+# crops wanted and their short description for planting/harvest percentages
+dataItemBase_planting <- ' - PROGRESS, MEASURED IN PCT PLANTED'
+dataItemBase_harvest <- ' - PROGRESS, MEASURED IN PCT HARVESTED'
+dataItemBase_maturity <- ' - PROGRESS, MEASURED IN PCT MATURE'
+
+cropsWanted0 <- data.frame(crop = rep(c('CORN','WHEAT','SORGHUM','SOYBEANS'),3),
+                          short = c(paste0('CORN', dataItemBase_planting),
+                                    paste0('WHEAT, WINTER', dataItemBase_planting),
+                                    paste0('SORGHUM', dataItemBase_planting),
+                                    paste0('SOYBEANS', dataItemBase_planting),
+                                    paste0('CORN, GRAIN', dataItemBase_harvest),
+                                    paste0('WHEAT, WINTER', dataItemBase_harvest),
+                                    paste0('SORGHUM, GRAIN', dataItemBase_harvest),
+                                    paste0('SOYBEANS', dataItemBase_harvest),
+                                    paste0('CORN', dataItemBase_maturity),
+                                    paste0('WHEAT, WINTER', dataItemBase_maturity),
+                                    paste0('SORGHUM', dataItemBase_maturity),
+                                    paste0('SOYBEANS', dataItemBase_maturity)
+                                    ))
+# but they don't have maturity data for soybeans in KS, so remove
+# note wheat only has later years
+cropsWanted <- cropsWanted0[-12,]
+
 
 # stick all crops into a list of crop dfs
 dates.list <- list()
+
 for(i in 1:nrow(cropsWanted)){
-  dates.list[[i]] <- getPlantingDate(apiKey, cropsWanted[i,1], cropsWanted[i,2], state, year)
+  dates.list[[i]] <- getPlantingDate(apiKey, cropsWanted[i,1], cropsWanted[i,2], 
+                                     state, year)
 }
 
 # convert list of data frames to 1 giant dataframe
@@ -127,7 +150,47 @@ dates.df <- do.call("rbind",dates.list)
 
 # write out raw NASS data in case the API breaks in the future
 write.csv(dates.df, row.names=FALSE, 
-  file = paste0(managementDir,'/NASS_plantingDates_KS_2006-2017_4crops_RAW.csv'))
+  file = paste0(managementDir,'/NASS_dates_planting_maturity_harvest_KS_2006-2017_4crops_RAW.csv'))
 ```
 
+Extract date of 50% planting/maturity/harvest for each crop and year. After grouping by crop and year, sort each group by the absolute distance of the % planted from 50, and take the top record.
+
+Do some data munging to make a nice df.
+
+```{r niceDates}
+# load date data downloaded from NASS
+dates.raw <- read.csv(paste0(managementDir,'/NASS_dates_planting_maturity_harvest_KS_2006-2017_4crops_RAW.csv'))
+
+# get the 
+dates.50 <- dates.raw %>% 
+  select(c(state_name, year, week_ending, short_desc, commodity_desc, Value)) %>% 
+  group_by(short_desc, year) %>%
+  arrange(abs(Value - 50)) %>%
+  slice(1) %>%
+  mutate(dateType = gsub("^.* ", "", short_desc)) %>%
+  ungroup() %>%
+  select(-c(short_desc, Value)) %>%     # remove columns to allow row collapse
+  spread(dateType, week_ending) %>%
+  rename(plantingDate_50 = PLANTED,
+         harvestDate_50 = HARVESTED,
+         maturityDate_50 = MATURE,
+         crop = commodity_desc) %>%
+  mutate(plantingDOY_50 = yday(ymd(plantingDate_50)),
+         harvestedDOY_50 = yday(ymd(harvestDate_50)),
+         matureDOY_50 = yday(ymd(maturityDate_50))) %>%
+  arrange(year,crop)
+
+# # export
+# write.csv(dates.50, row.names=FALSE, 
+#   file = paste0(managementDir,'/NASS_dates_planting_maturity_harvest_KS_2006-2017_4crops_MEDIANs.csv'))
+
+# make a plot
+dates.50.long <- dates.50 %>% select(-c(harvestDate_50,maturityDate_50,plantingDate_50)) %>%
+  gather(key = dateType, value = DOY, plantingDOY_50:matureDOY_50)
+
+ggplot(dates.50.long, aes(x = year, y = DOY, color = dateType)) +
+  geom_point() + geom_line() +
+  facet_wrap(~crop) + theme_bw() +
+  ggtitle('Dates of 50% planted, maturity, and harvest, KS')
+```
 
