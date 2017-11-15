@@ -24,13 +24,16 @@ knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.28_salus_management/',
 # for API interaction
 library(httr) 
 library(jsonlite)
+
+# for extracting median planting dates
 library(tidyverse)
 library(lubridate)
 ```
 
-** Directories **
+**Directories**
 
 ```{r dirVars}
+# place to store output
 managementDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/management'
 ```
 
@@ -38,20 +41,20 @@ managementDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/manage
 # Functions: NASS Quick Stats API 
 
 * API website: http://quickstats.nass.usda.gov/api
-* My API key: 28EAA9E6-8060-34A4-981A-B2ED4692228A
 
-## Function: Get Planting Dates By Commodity, Year
+## Function: Get Progress or densities By Commodity, Year
+So far this works for progress dates (ie, planting, maturity, harvest) and row width/population numbers. So I should probably change its name.
 
 Arguments:
-Everything hard-coded except commodity, year, and state 
+Everything currently hard-coded except commodity, category, shortDesc, year, and state 
 
 * apiKey: Obtained from http://quickstats.nass.usda.gov/api
 * program: 'SURVEY' (other option: 'CENSUS'; survey is hardcoded)
 * sector: 'CROPS' here 
 * group: 'FIELD CROPS' 
 * Commodity: 'CORN' ('WHEAT', 'SORGHUM','SOYBEANS')
-* Category: 'PROGRESS'
-* Data Item: 'CORN - PROGRESS, MEASURED IN PCT PLANTED'
+* Category: 'PROGRESS' ('ROW WIDTH', etc)
+* Data Item: ' - PROGRESS, MEASURED IN PCT PLANTED' ...etc, pasted to crop type but not exactly
 * Domain: 'TOTAL'
 * Geographic Level: 'STATE'
 * State: 'KANSAS' 
@@ -59,13 +62,14 @@ Everything hard-coded except commodity, year, and state
 
 Requires: `httr` and `jsonlite`
 
-```{r fun_plantingDate}
-apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
-commodity <- 'CORN'
-shortDesc <- 'CORN - PROGRESS, MEASURED IN PCT PLANTED'
-category <- 'PROGRESS'
-state <- 'KANSAS'
-year <- 2006
+```{r fun_getPlantingDate}
+## function testing variables
+# apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
+# commodity <- 'CORN'
+# shortDesc <- 'CORN - PROGRESS, MEASURED IN PCT PLANTED'
+# category <- 'PROGRESS'
+# state <- 'KANSAS'
+# year <- 2006
 
 getPlantingDate <- function(apikey, commodity, category, shortDesc, state, year){
   # build URL query
@@ -73,17 +77,17 @@ getPlantingDate <- function(apikey, commodity, category, shortDesc, state, year)
   format = 'JSON'
   GETrequest <- paste0(baseurl,
                      '/?key=',apiKey,
-                     '&source_desc=','SURVEY',
-                     '&sector_desc=','CROPS',
-                     '&group_desc=','FIELD CROPS',
-                     '&commodity_desc=',commodity,
-                     '&statisticcat_desc=',category,
+                     '&source_desc=', 'SURVEY',
+                     '&sector_desc=', 'CROPS',
+                     '&group_desc=', 'FIELD CROPS',
+                     '&commodity_desc=', commodity,
+                     '&statisticcat_desc=', category,
                      '&short_desc=', shortDesc,
                      '&domain_desc=', 'TOTAL',
                      '&agg_level_desc=', 'STATE',
-                     '&state_name=', 'KANSAS',
+                     '&state_name=', state,
                      '&year__GE=', year,
-                     '&format=',format)
+                     '&format=', format)
   
   # if present, replace commas and spaces in url with encodings
   if(grepl(" ", GETrequest))  GETrequest <- gsub(" ", "%20", GETrequest)
@@ -167,8 +171,9 @@ dates.raw <- read.csv(paste0(managementDir,'/NASS_dates_planting_maturity_harves
 dates.50 <- dates.raw %>% 
   select(c(state_name, year, week_ending, short_desc, commodity_desc, Value)) %>% 
   group_by(short_desc, year) %>%
-  arrange(abs(Value - 50)) %>%
-  slice(1) %>%
+  arrange(abs(Value - 50)) %>%         # calculate distance from 50% and sort on this
+  slice(1) %>%                         # take the top record (closest to 50%)
+  # and format into nice look up table:
   mutate(dateType = gsub("^.* ", "", short_desc)) %>%
   ungroup() %>%
   select(-c(short_desc, Value)) %>%     # remove columns to allow row collapse
