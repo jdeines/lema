@@ -11,7 +11,7 @@ Goal: Retrieve crop management parameters from the NASS Quickstats API
 
 Functions to package up:
 
-* get planting progress/dates from NASS
+* get planting, harvest, maturity.. progress/dates from NASS
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.28_salus_management/',
@@ -163,7 +163,7 @@ Do some data munging to make a nice df.
 # load date data downloaded from NASS
 dates.raw <- read.csv(paste0(managementDir,'/NASS_dates_planting_maturity_harvest_KS_2006-2017_4crops_RAW.csv'))
 
-# get the 
+# get the "median" planting, maturity, and harvest dates in a nicely formatted table
 dates.50 <- dates.raw %>% 
   select(c(state_name, year, week_ending, short_desc, commodity_desc, Value)) %>% 
   group_by(short_desc, year) %>%
