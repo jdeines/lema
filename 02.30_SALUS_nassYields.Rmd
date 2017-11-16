@@ -25,7 +25,10 @@ knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.30_salus_nassYields/',
 library(httr) 
 library(jsonlite)
 
+# to pull county names
+library(sf)
 
+library(tidyverse)
 ```
 
 **Directories**
@@ -33,6 +36,9 @@ library(jsonlite)
 ```{r dirVars}
 # place to store output
 yieldDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/nass_yield'
+
+# studay area boundary with counties
+boundFile <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries/GMD4_plus_byCounty.shp'
 ```
 
 
@@ -40,15 +46,12 @@ yieldDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/nass_yield'
 
 * API website: http://quickstats.nass.usda.gov/api
 
-## Function: Get Progress or densities By Commodity, Year
-So far this works for progress dates (ie, planting, maturity, harvest) and row width/population numbers. So I should probably change its name.
-
-Arguments:
-Everything currently hard-coded except commodity, category, shortDesc, year, and state 
+## Function: Get Yield by Commodity, County, Year
+part of the set of functions i've made for NASS that really should become 1 or 2.
 
 Current hard coded: 
 
-* program: 'SURVEY' (other option: 'CENSUS'; survey is hardcoded)
+* sector: 'CROPS'
 * group: 'FIELD CROPS' 
 * Domain: 'TOTAL'
 * Geographic Level: 'STATE'
@@ -56,39 +59,43 @@ Current hard coded:
 Function parameters:
 
 * apiKey: Obtained from http://quickstats.nass.usda.gov/api
-* sector: usually 'CROPS'; 'ENVIRONMENTAL' for fertilizer
+* program: 'SURVEY' (other option: 'CENSUS')
 * Commodity: 'CORN' ('WHEAT', 'SORGHUM','SOYBEANS')
-* Category: 'PROGRESS' ('ROW WIDTH', etc)
+* Category: 'YIELD' 
 * Data Item/ short desc: ' - PROGRESS, MEASURED IN PCT PLANTED' ...etc, pasted to crop type but not exactly
-* State: 'KANSAS' 
+* State: 'KS' - 2 letter code 
+* county: county 3-digit ANSI code
 * Year: '2006' = start  year; retrieves data for all subsequent years
 
 Requires: `httr` and `jsonlite`
 
 ```{r fun_getYield}
-## function testing variables
+# # function testing variables
 # apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
+# program <- 'SURVEY'
 # commodity <- 'CORN'
-# shortDesc <- 'CORN - PROGRESS, MEASURED IN PCT PLANTED'
-# category <- 'PROGRESS'
-# state <- 'KANSAS'
+# shortDesc <- 'CORN, GRAIN, IRRIGATED - YIELD, MEASURED IN BU / ACRE'
+# state <- 'KS'
+# county <- 179
 # year <- 2006
 
-getPlantingDate <- function(apikey, sector, commodity, category, shortDesc, state, year){
+getCountyYieldNASS <- function(apikey, program, commodity, shortDesc, state, 
+                               county, year){
   # build URL query
   baseurl <- 'http://quickstats.nass.usda.gov/api/api_GET'
   format = 'JSON'
   GETrequest <- paste0(baseurl,
                      '/?key=',apiKey,
-                     '&source_desc=', 'SURVEY',
-                     '&sector_desc=', sector,
+                     '&source_desc=', program,
+                     '&sector_desc=', 'CROPS',
                      '&group_desc=', 'FIELD CROPS',
                      '&commodity_desc=', commodity,
-                     '&statisticcat_desc=', category,
+                     '&statisticcat_desc=', 'YIELD',
                      '&short_desc=', shortDesc,
                      '&domain_desc=', 'TOTAL',
-                     '&agg_level_desc=', 'STATE',
-                     '&state_name=', state,
+                     '&agg_level_desc=', 'COUNTY',
+                     '&state_alpha=', state,
+                     '&county_ansi=', county,
                      '&year__GE=', year,
                      '&format=', format)
   
@@ -99,10 +106,84 @@ getPlantingDate <- function(apikey, sector, commodity, category, shortDesc, stat
   # retrive data
   req <- GET(GETrequest)
   # check status and throw stop/error: 200 means successful
-  stop_for_status(req)
+  warn_for_status(req, paste('download', state,county,commodity,shortDesc))
   # extract content
-  json <- content(req, as = 'text')
+  json <- content(req, as = 'text', encoding = 'UTF-8')
   # convert from JSON and extract df from list object
   outputdf <- fromJSON(json)[[1]]
 }
 ```
+
+
+# Get Yield Data
+
+## Get Counties of Interest
+Pull the county FIPS/state from the project boundary shapefile by county
+
+```{r getCounties}
+# load 
+boundByCounty <- read_sf(boundFile) %>% as.data.frame()
+
+# get state and 3 digit fips
+countiesToGet <- boundByCounty %>%
+  mutate(fips3 = substr(fips5, 3,5)) %>%
+  select(c(abb, fips3))
+```
+
+## Query Parameters
+Make a query parameter data frame
+
+### short description types
+combinations for the data items based on crop type
+```{r makeShorts}
+# yield data types short description bases: all, irrigated, rainfed
+yieldTypes <- paste0(c('', ', IRRIGATED', ', NON-IRRIGATED'), ' - YIELD, MEASURED IN BU / ACRE')
+
+# crop short desc prefixes
+shortPrefixes <- c('CORN, GRAIN', 'SORGHUM, GRAIN', 'SOYBEANS','WHEAT')
+
+# full set of short descriptions needed
+shortDescs <- sort(paste0(rep(shortPrefixes,3), yieldTypes))
+
+# df of all combos
+cropYieldsToGet <- data.frame(crop = c(rep('CORN',3), rep('SORGHUM',3), 
+                                       rep('SOYBEANS',3), rep('WHEAT',3)),
+                              short = shortDescs)
+```
+
+## Retrieve data
+behold the nested for lopp
+
+```{r getYield}
+# parameters
+apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
+program <- 'SURVEY'
+year <- 2006
+
+# list to store output
+yield.list <- vector('list',nrow(countiesToGet)*nrow(cropYieldsToGet))
+
+# get data
+x <- 1  # start list indexing at 1
+for (i in 1:nrow(countiesToGet)){
+  # set variables
+  state <-  countiesToGet[i,'abb']
+  county <- countiesToGet[i,'fips3']
+  
+  for(m in 1:nrow(cropYieldsToGet)){
+    crop <- as.character(cropYieldsToGet[m,'crop'])
+    short <- as.character(cropYieldsToGet[m,'short'])
+    
+    # retrieve data!
+    yield.list[[x]] <- getCountyYieldNASS(apikey, program, crop, 
+                               short, state, county, year)
+    x <- x + 1  # advance list index
+  }      
+}
+
+
+```
+
+
+
+
