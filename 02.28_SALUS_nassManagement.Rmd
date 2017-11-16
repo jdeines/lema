@@ -48,15 +48,20 @@ So far this works for progress dates (ie, planting, maturity, harvest) and row w
 Arguments:
 Everything currently hard-coded except commodity, category, shortDesc, year, and state 
 
-* apiKey: Obtained from http://quickstats.nass.usda.gov/api
+Current hard coded: 
+
 * program: 'SURVEY' (other option: 'CENSUS'; survey is hardcoded)
-* sector: 'CROPS' here 
 * group: 'FIELD CROPS' 
-* Commodity: 'CORN' ('WHEAT', 'SORGHUM','SOYBEANS')
-* Category: 'PROGRESS' ('ROW WIDTH', etc)
-* Data Item: ' - PROGRESS, MEASURED IN PCT PLANTED' ...etc, pasted to crop type but not exactly
 * Domain: 'TOTAL'
 * Geographic Level: 'STATE'
+
+Function parameters:
+
+* apiKey: Obtained from http://quickstats.nass.usda.gov/api
+* sector: usually 'CROPS'; 'ENVIRONMENTAL' for fertilizer
+* Commodity: 'CORN' ('WHEAT', 'SORGHUM','SOYBEANS')
+* Category: 'PROGRESS' ('ROW WIDTH', etc)
+* Data Item/ short desc: ' - PROGRESS, MEASURED IN PCT PLANTED' ...etc, pasted to crop type but not exactly
 * State: 'KANSAS' 
 * Year: '2006' = start  year; retrieves data for all subsequent years
 
@@ -71,14 +76,14 @@ Requires: `httr` and `jsonlite`
 # state <- 'KANSAS'
 # year <- 2006
 
-getPlantingDate <- function(apikey, commodity, category, shortDesc, state, year){
+getPlantingDate <- function(apikey, sector, commodity, category, shortDesc, state, year){
   # build URL query
   baseurl <- 'http://quickstats.nass.usda.gov/api/api_GET'
   format = 'JSON'
   GETrequest <- paste0(baseurl,
                      '/?key=',apiKey,
                      '&source_desc=', 'SURVEY',
-                     '&sector_desc=', 'CROPS',
+                     '&sector_desc=', sector,
                      '&group_desc=', 'FIELD CROPS',
                      '&commodity_desc=', commodity,
                      '&statisticcat_desc=', category,
@@ -104,7 +109,6 @@ getPlantingDate <- function(apikey, commodity, category, shortDesc, state, year)
 }
 ```
 
-
 # Get data
 
 ## Planting, Maturity, Harvest Dates
@@ -115,6 +119,7 @@ Short descriptions retrieved from the quickstats.nass.usda.gov manual interface
 ```{r getDates, eval=FALSE}
 # planting date arguments
 apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
+sector <- 'CROPS'
 category <- 'PROGRESS'
 state <- 'KANSAS'
 year <- 2006
@@ -147,7 +152,7 @@ cropsWanted <- cropsWanted0[-12,]
 dates.list <- list()
 
 for(i in 1:nrow(cropsWanted)){
-  dates.list[[i]] <- getPlantingDate(apiKey, cropsWanted[i,'crop'], category,
+  dates.list[[i]] <- getPlantingDate(apiKey, sector, cropsWanted[i,'crop'], category,
                                      cropsWanted[i,'short'], state, year)
 }
 
@@ -209,6 +214,7 @@ Not available for sorghum or wheat
 ```{r getRowWidth, eval=FALSE}
 # planting date arguments
 apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
+sector <- 'CROPS'
 category <- 'ROW WIDTH'
 state <- 'KANSAS'
 year <- 2006
@@ -225,7 +231,7 @@ cropsWanted2 <- data.frame(crop = c('CORN','SOYBEANS'),
 width.list <- list()
 
 for(i in 1:nrow(cropsWanted)){
-  width.list[[i]] <- getPlantingDate(apiKey, cropsWanted2[i,'crop'], category,
+  width.list[[i]] <- getPlantingDate(apiKey, sector, cropsWanted2[i,'crop'], category,
                                      cropsWanted2[i,'short'], state, year)
 }
 
@@ -237,7 +243,7 @@ write.csv(width.df, row.names=FALSE,
   file = paste0(managementDir,'/NASS_rowWidth_KS_2012-2017_cornSoy_RAW.csv'))
 ```
 
-## Plant densities
+### Plant densities
 These start to get spotty and weird:
 
 * Plant density is currently only available for corn. It's only available for irrigated/non-irrigated corn separately in Nebraska.
@@ -249,17 +255,73 @@ state <- 'KANSAS'
 year <- 2006
 
 # density arguments
+sector <- 'CROPS'
 category <- 'PLANT POPULATION'
 crop <- 'CORN'
 short <- 'CORN, GRAIN - PLANT POPULATION, MEASURED IN PLANTS / ACRE'
 
 # only a single df to retrieve
-density.df <- getPlantingDate(apiKey, crop, category, short, state, year)
+density.df <- getPlantingDate(apiKey, sector, crop, category, short, state, year)
 
 # write out raw NASS data in case the API breaks in the future
 write.csv(density.df, row.names=FALSE, 
   file = paste0(managementDir,'/NASS_plantDensity_KS_2006-2017_corn_RAW.csv'))
 ```
 
-## Series of Ear/Head/Pod Counts
+### Series of Ear/Head/Pod Counts
 There's also ear (corn), head (wheat), and pod counts (soy). There doesn't seem to be any related information for sorghum.
+
+```{r getCounts, eval=FALSE}
+# planting date arguments
+apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
+sector <- 'CROPS'
+category <- 'PROGRESS'
+state <- 'KANSAS'
+year <- 2006
+
+# CROP, CATEGORY, AND SHORT/DATA ITEM VARIABLES
+cropsWanted3 <- data.frame(crop = c('CORN','CORN','WHEAT','SOYBEANS'),
+                           category = c('EAR COUNT','EAR COUNT', 'HEAD COUNT', 'POD COUNT'),
+                           short = c('CORN, GRAIN - EAR COUNT, MEASURED IN EARS / ACRE',
+                                     'CORN, GRAIN, IRRIGATED - EAR COUNT, MEASURED IN EARS / ACRE',
+                                     'WHEAT, WINTER - HEAD COUNT, MEASURED IN HEAD / SQ FT',
+                                     'SOYBEANS - POD COUNT, MEASURED IN PODS / 18 SQ FT'))
+
+
+
+# stick all crops into a list of crop dfs
+count.list <- list()
+
+for(i in 1:nrow(cropsWanted3)){
+  count.list[[i]] <- getPlantingDate(apiKey, sector, cropsWanted3[i,'crop'], 
+                                     cropsWanted3[i,'category'],
+                                     cropsWanted3[i,'short'], state, year)
+}
+
+# convert list of data frames to 1 giant dataframe
+count.df <- do.call("rbind",count.list)
+
+# write out raw NASS data in case the API breaks in the future
+write.csv(count.df, row.names=FALSE, 
+  file = paste0(managementDir,'/NASS_countsFruitingBodies_KS_2006-2017_3crops_RAW.csv'))
+```
+
+### Fertilizer
+It's starting to feel silly that I didn't retrieve all of these variables at once...
+
+only for corn; also hard to tell what info i need. tabling for now.
+
+```{r getFertilizer, eval=FALSE}
+# generic arguments for this project
+apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
+state <- 'KANSAS'
+year <- 2006
+
+# density arguments
+sector <- 'ENVIRONMENTAL'
+category <- 'APPLICATIONS'
+crop <- 'CORN'
+```
+
+# Synthesize a Master Management Look-up Table
+put 'em together
