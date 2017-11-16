@@ -7,7 +7,7 @@ output:
     toc: yes
 ---
 
-Goal: Retrieve crop management parameters from the NASS Quickstats API
+Goal: Retrieve crop management parameters from the NASS Quickstats API. While we're at it go ahead and get yields.
 
 Functions to package up:
 
@@ -204,9 +204,9 @@ ggplot(dates.50.long, aes(x = year, y = DOY, color = dateType)) +
 ## Row Width, Density, Fertilizer
 
 ### Row width
-Not available for sorghum
+Not available for sorghum or wheat
 
-```{r getRowWidth}
+```{r getRowWidth, eval=FALSE}
 # planting date arguments
 apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
 category <- 'ROW WIDTH'
@@ -216,25 +216,50 @@ year <- 2006
 # crops wanted and their short description for planting/harvest percentages
 dataItemBase_row <- ' - ROW WIDTH, MEASURED IN INCHES / ROW'
 
-cropsWanted0 <- data.frame(crop = rep(c('CORN','SOYBEANS'),1),
+cropsWanted2 <- data.frame(crop = c('CORN','SOYBEANS'),
                           short = c(paste0('CORN, GRAIN', dataItemBase_row),
-                                    paste0('SOYBEANS', dataItemBase_row)
-                                    ))
+                                    paste0('SOYBEANS', dataItemBase_row)))
 
 
 # stick all crops into a list of crop dfs
-dates.list <- list()
+width.list <- list()
 
 for(i in 1:nrow(cropsWanted)){
-  dates.list[[i]] <- getPlantingDate(apiKey, cropsWanted[i,'crop'], category,
-                                     cropsWanted[i,'short'], state, year)
+  width.list[[i]] <- getPlantingDate(apiKey, cropsWanted2[i,'crop'], category,
+                                     cropsWanted2[i,'short'], state, year)
 }
 
 # convert list of data frames to 1 giant dataframe
-dates.df <- do.call("rbind",dates.list)
+width.df <- do.call("rbind",width.list)
 
 # write out raw NASS data in case the API breaks in the future
-write.csv(dates.df, row.names=FALSE, 
-  file = paste0(managementDir,'/NASS_dates_planting_maturity_harvest_KS_2006-2017_4crops_RAW.csv'))
+write.csv(width.df, row.names=FALSE, 
+  file = paste0(managementDir,'/NASS_rowWidth_KS_2012-2017_cornSoy_RAW.csv'))
 ```
 
+## Plant densities
+These start to get spotty and weird:
+
+* Plant density is currently only available for corn. It's only available for irrigated/non-irrigated corn separately in Nebraska.
+
+```{r getDensities, eval=FALSE}
+# generic arguments for this project
+apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
+state <- 'KANSAS'
+year <- 2006
+
+# density arguments
+category <- 'PLANT POPULATION'
+crop <- 'CORN'
+short <- 'CORN, GRAIN - PLANT POPULATION, MEASURED IN PLANTS / ACRE'
+
+# only a single df to retrieve
+density.df <- getPlantingDate(apiKey, crop, category, short, state, year)
+
+# write out raw NASS data in case the API breaks in the future
+write.csv(density.df, row.names=FALSE, 
+  file = paste0(managementDir,'/NASS_plantDensity_KS_2006-2017_corn_RAW.csv'))
+```
+
+## Series of Ear/Head/Pod Counts
+There's also ear (corn), head (wheat), and pod counts (soy). There doesn't seem to be any related information for sorghum.
