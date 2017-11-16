@@ -65,7 +65,7 @@ Function parameters:
 
 Requires: `httr` and `jsonlite`
 
-```{r fun_getPlantingDate}
+```{r fun_getYield}
 ## function testing variables
 # apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
 # commodity <- 'CORN'

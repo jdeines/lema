@@ -7,7 +7,7 @@ output:
     toc: yes
 ---
 
-Goal: Retrieve crop management parameters from the NASS Quickstats API. While we're at it go ahead and get yields.
+Goal: Retrieve crop management parameters from the NASS Quickstats API. 
 
 Functions to package up:
 
