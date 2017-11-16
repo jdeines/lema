@@ -106,7 +106,7 @@ getCountyYieldNASS <- function(apikey, program, commodity, shortDesc, state,
   # retrive data
   req <- GET(GETrequest)
   # check status and throw stop/error: 200 means successful
-  warn_for_status(req, paste('download', state,county,commodity,shortDesc))
+  warn_for_status(req, paste('download', state,county,shortDesc))
   # extract content
   json <- content(req, as = 'text', encoding = 'UTF-8')
   # convert from JSON and extract df from list object
@@ -180,7 +180,16 @@ for (i in 1:nrow(countiesToGet)){
     x <- x + 1  # advance list index
   }      
 }
+```
 
+A quick check of the warnings indicates that for those counties, there's no data for that crop/short description for the years 2006+
+
+### Format Data
+make it nice
+
+```{r formatYield}
+# remove bad queries from list
+yields.list2 <- yields.list[]
 
 ```
 

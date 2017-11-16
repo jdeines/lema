@@ -101,7 +101,7 @@ getPlantingDate <- function(apikey, sector, commodity, category, shortDesc, stat
   # retrive data
   req <- GET(GETrequest)
   # check status and warn for errors: 200 means successful, 400 not
-  warn_for_status(req, paste('download', state,commodity,shortDesc))
+  warn_for_status(req, paste('download', state,shortDesc))
   # extract content
   json <- content(req, as = 'text', encoding = 'UTF-8')
   # convert from JSON and extract df from list object
