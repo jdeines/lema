@@ -35,7 +35,7 @@ library(tidyverse)
 
 ```{r dirVars}
 # place to store output
-yieldDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/nass_yield'
+yieldDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/yield_nass'
 
 # studay area boundary with counties
 boundFile <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries/GMD4_plus_byCounty.shp'
@@ -154,7 +154,7 @@ cropYieldsToGet <- data.frame(crop = c(rep('CORN',3), rep('SORGHUM',3),
 ## Retrieve data
 behold the nested for lopp
 
-```{r getYield}
+```{r getYield, eval=FALSE}
 # parameters
 apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
 program <- 'SURVEY'
@@ -184,15 +184,62 @@ for (i in 1:nrow(countiesToGet)){
 
 A quick check of the warnings indicates that for those counties, there's no data for that crop/short description for the years 2006+
 
-### Format Data
-make it nice
+### Combine and Export Raw Data
 
-```{r formatYield}
+
+```{r formatYield, eval=FALSE}
 # remove bad queries from list
-yields.list2 <- yields.list[]
+hasData <- sapply(yield.list, function(x) class(x)=='data.frame')
+yields.list2 <- yield.list[hasData]
 
+# convert list of data frames to 1 giant dataframe
+yields.df <- do.call("rbind",yields.list2)
+
+# write out raw NASS data in case the API breaks in the future
+write.csv(yields.df, row.names=FALSE, 
+  file = paste0(yieldDir,'/NASS_yields_KS_2006-2017_4crops_RAW.csv'))
 ```
 
+
+## Make It Nice
+
+```{r formatData}
+yield.raw <- read_csv(paste0(yieldDir,'/NASS_yields_KS_2006-2017_4crops_RAW.csv'))
+
+# simplify
+yield.clean <- yield.raw %>%
+  # make nicer columns for county/state fips and irrigated/not/all statuses
+  mutate(type = sub(" .*", "", prodn_practice_desc),
+         fips5 = paste0(state_fips_code, county_code)) %>%
+  rename(crop = commodity_desc, yield = Value) %>%
+  # drop most columns
+  select(c(year, fips5, county_name, crop, type, yield, unit_desc, state_name)) %>%
+  arrange(year, fips5, crop)
+
+#export
+write.csv(yield.clean, row.names=FALSE, 
+  file = paste0(yieldDir,'/NASS_yields_KS_2006-2017_4crops_CLEANED.csv'))
+```
+
+
+## Visualize
+
+Overall regional yields by crop type and irrigation status:
+
+```{r regionalYields}
+# format data
+regional <- yield.clean %>%
+  group_by(year, crop, type) %>%
+  do(data.frame(t(quantile(.$yield, probs = c(.1, .25, .5, .75, .9),na.rm=TRUE))))
+
+# plot
+ggplot(regional, aes(x=year, y = X50., color = type)) +
+  geom_ribbon(aes(x = year, ymin = X25., ymax = X75., fill=type), alpha = .4) +
+  geom_line() +
+  facet_wrap(~crop) +
+  ylab('Yield (BU/ACRE)') + xlab('') + ggtitle('Median and IQR Yield, GMD4+') +
+  theme_bw() + theme(legend.position = 'bottom', legend.title = element_blank())
+```
 
 
 
