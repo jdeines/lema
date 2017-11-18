@@ -7,7 +7,12 @@ output:
     toc: yes
 ---
 
-Goal: Retrieve crop yields by county from the NASS Quickstats API. 
+Goal: Retrieve crop yields from the NASS Quickstats API:
+
+* annual survey by county
+* annual survey by state, since a lot of counties dont have survey data
+* Census data by county
+
 
 Functions to package up:
 
@@ -114,6 +119,51 @@ getCountyYieldNASS <- function(apikey, program, commodity, shortDesc, state,
 }
 ```
 
+## function: get yield by state
+copying this function is getting out of hand.
+
+```{r fun_getYield}
+# function testing variables
+apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
+program <- 'SURVEY'
+commodity <- 'CORN'
+shortDesc <- 'CORN, GRAIN, IRRIGATED - YIELD, MEASURED IN BU / ACRE'
+state <- 'KS'
+year <- 2006
+
+getStateYieldNASS <- function(apikey, program, commodity, shortDesc, state, 
+                               year){
+  # build URL query
+  baseurl <- 'http://quickstats.nass.usda.gov/api/api_GET'
+  format = 'JSON'
+  GETrequest <- paste0(baseurl,
+                     '/?key=',apiKey,
+                     '&source_desc=', program,
+                     '&sector_desc=', 'CROPS',
+                     '&group_desc=', 'FIELD CROPS',
+                     '&commodity_desc=', commodity,
+                     '&statisticcat_desc=', 'YIELD',
+                     '&short_desc=', shortDesc,
+                     '&domain_desc=', 'TOTAL',
+                     '&agg_level_desc=', 'STATE',
+                     '&state_alpha=', state,
+                     '&year__GE=', year,
+                     '&format=', format)
+  
+  # if present, replace commas and spaces in url with encodings
+  if(grepl(" ", GETrequest))  GETrequest <- gsub(" ", "%20", GETrequest)
+  if(grepl(",", GETrequest))  GETrequest <- gsub(",", "%2C", GETrequest)
+  
+  # retrive data
+  req <- GET(GETrequest)
+  # check status and throw stop/error: 200 means successful
+  warn_for_status(req, paste('download', state, shortDesc))
+  # extract content
+  json <- content(req, as = 'text', encoding = 'UTF-8')
+  # convert from JSON and extract df from list object
+  outputdf <- fromJSON(json)[[1]]
+}
+```
 
 # Get Yield Data
 
@@ -237,9 +287,78 @@ ggplot(regional, aes(x=year, y = X50., color = type)) +
   geom_ribbon(aes(x = year, ymin = X25., ymax = X75., fill=type), alpha = .4) +
   geom_line() +
   facet_wrap(~crop) +
-  ylab('Yield (BU/ACRE)') + xlab('') + ggtitle('Median and IQR Yield, GMD4+') +
+  ylab('Yield (BU/ACRE)') + xlab('') + 
+  ggtitle('Median and IQR Yield, GMD4+ Counties') +
   theme_bw() + theme(legend.position = 'bottom', legend.title = element_blank())
 ```
 
 
+# State Yield
+Get yields at the state level since county data doesn't exist each year.
 
+## Download annual state yields
+
+```{r stateSurvey, eval=FALSE}
+# parameters
+apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
+program <- 'SURVEY'
+state <- 'KS'
+year <- 2006
+
+# list to store output
+state.list <- vector('list',nrow(cropYieldsToGet))
+
+# get data
+for (i in 1:nrow(cropYieldsToGet)){
+  # set variables
+  crop <- as.character(cropYieldsToGet[i,'crop'])
+  short <- as.character(cropYieldsToGet[i,'short'])
+    
+  # retrieve data!
+  state.list[[i]] <- getStateYieldNASS(apikey, program, crop, 
+                               short, state, year)
+}
+
+# convert list of data frames to 1  dataframe
+state.df <- do.call("rbind",state.list)
+
+# write out raw NASS data in case the API breaks in the future
+write.csv(state.df, row.names=FALSE, 
+  file = paste0(yieldDir,'/NASS_yields_STATE_KS_2006-2017_4crops_RAW.csv'))
+```
+
+## Make It Nice
+
+```{r formatData}
+state.raw <- read_csv(paste0(yieldDir,'/NASS_yields_STATE_KS_2006-2017_4crops_RAW.csv'))
+
+# simplify
+state.clean <- state.raw %>%
+  # remove forecast values
+  filter(reference_period_desc == 'YEAR') %>%
+  # make nicer columns for county/state fips and irrigated/not/all statuses
+  mutate(type = sub(" .*", "", prodn_practice_desc)) %>%
+  rename(crop = commodity_desc, yield = Value) %>%
+  # drop most columns
+  select(c(year, crop, type, yield, unit_desc, state_name)) %>%
+  arrange(year, crop, type)
+
+#export
+write.csv(state.clean, row.names=FALSE, 
+  file = paste0(yieldDir,'/NASS_yields_STATE_KS_2006-2017_4crops_CLEANED.csv'))
+```
+
+
+## Visualize
+
+Overall STATE yields by crop type and irrigation status:
+
+```{r regionalYields}
+# plot
+ggplot(state.clean %>% filter(year < 2017), 
+       aes(x=year, y = yield, color = type)) +
+  geom_line() +
+  facet_wrap(~crop) +
+  ylab('Yield (BU/ACRE)') + xlab('') + ggtitle('Kansas State Yields') +
+  theme_bw() + theme(legend.position = 'bottom', legend.title = element_blank())
+```
