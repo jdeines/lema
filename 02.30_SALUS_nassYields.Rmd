@@ -122,7 +122,7 @@ getCountyYieldNASS <- function(apikey, program, commodity, shortDesc, state,
 ## function: get yield by state
 copying this function is getting out of hand.
 
-```{r fun_getYield}
+```{r fun_getStateYield}
 # function testing variables
 apiKey <- '28EAA9E6-8060-34A4-981A-B2ED4692228A'
 program <- 'SURVEY'
@@ -252,6 +252,24 @@ write.csv(yields.df, row.names=FALSE,
 
 
 ## Make It Nice
+Including converting from bushels / acre to kg / hectare. Weights of crops per bushel:
+
+UNC site says 
+
+* corn, shelled: 56
+* corn, ear: 70
+* corn (in ear):35
+
+crop | pounds/bushel | kg/ha = x bu/acre
+--------------- | ------ | --------
+corn | 56 | 0.0159
+soy/wheat | 60 | 0.0149
+sorghum, grain | 56 | 0.0159
+
+From
+
+* https://www.extension.iastate.edu/agdm/wholefarm/html/c6-80.html
+* http://www.unc.edu/~rowlett/units/scales/bushels.html
 
 ```{r formatData}
 yield.raw <- read_csv(paste0(yieldDir,'/NASS_yields_KS_2006-2017_4crops_RAW.csv'))
@@ -329,7 +347,7 @@ write.csv(state.df, row.names=FALSE,
 
 ## Make It Nice
 
-```{r formatData}
+```{r formatData2}
 state.raw <- read_csv(paste0(yieldDir,'/NASS_yields_STATE_KS_2006-2017_4crops_RAW.csv'))
 
 # simplify
@@ -353,7 +371,7 @@ write.csv(state.clean, row.names=FALSE,
 
 Overall STATE yields by crop type and irrigation status:
 
-```{r regionalYields}
+```{r stateYields}
 # plot
 ggplot(state.clean %>% filter(year < 2017), 
        aes(x=year, y = yield, color = type)) +
