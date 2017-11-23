@@ -325,3 +325,38 @@ crop <- 'CORN'
 
 # Synthesize a Master Management Look-up Table
 put 'em together
+
+Right now, just:
+
+* row width
+* corn density
+* random counts per area (fruiting bodies)
+
+```{r masterManagement}
+# load output from chunks above
+dates <- read.csv(paste0(managementDir,'/NASS_dates_planting_maturity_harvest_KS_2006-2017_4crops_MEDIANs.csv'))
+
+fruitingBodies <- read.csv(paste0(managementDir,'/NASS_countsFruitingBodies_KS_2006-2017_3crops_RAW.csv'))
+density <- read.csv(paste0(managementDir,'/NASS_plantDensity_KS_2006-2017_corn_RAW.csv'))
+rowWidth <- read.csv(paste0(managementDir,'/NASS_rowWidth_KS_2012-2017_cornSoy_RAW.csv'))
+
+# clean row/density etc
+spacing0 <- rbind(rowWidth, rbind(fruitingBodies, density))
+
+spacing <- spacing0 %>%
+  # make nicer columns for county/state fips and irrigated/not/all statuses
+  mutate(type = sub(" .*", "", prodn_practice_desc)) %>%
+  rename(crop = commodity_desc, 
+         variable = statisticcat_desc,
+         density = ) %>%
+  # drop most columns
+  select(c(state_name, year, crop, type, variable, short_desc, 
+           Value, unit_desc)) %>%
+  arrange(crop, Value, year) 
+  
+
+
+```
+
+
+
