@@ -1,0 +1,69 @@
+---
+title: "Generate Salus Experiment Files"
+author: "Jill Deines"
+date: "November 23, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: Make Experiment Files; here, a continuous run of wheat
+
+Functions to package up:
+
+* write experiment file!
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.50_salus_expt/',
+                      cache = TRUE, cache.path='cache/02.50_salus_expt/')
+```
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+library(tidyverse)
+```
+
+**Directories**
+
+```{r dirs}
+testDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/SALUS/testGUIrun/continuousWheat'
+
+```
+
+## Extract some management info
+
+```{r getManagement}
+# load date file
+managementDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/management'
+dates <- read.csv(paste0(managementDir,'/NASS_dates_planting_maturity_harvest_KS_2006-2017_4crops_MEDIANs.csv'))
+
+# extract wheat means
+wheatDates <- dates %>% filter(crop == 'WHEAT')
+mean(wheatDates$plantingDOY_50)
+mean(wheatDates$harvestedDOY_50, na.rm = TRUE)
+```
+
+
+# write Xdb Function
+Modified from function from Lydia Rill and Brian Baer's python function, which focuses on corn - rye rotations from 1979 hardcode
+
+```{r fun_writeXdb}
+# arguments for development
+outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
+ExpID <- 'wheatTest_continuous'
+RunTitle <- ''
+WthID <- '1001'
+WthFile <- '1001.sdb.xml'
+SoilID <- 'KS1017570'
+SoilFile <- 'KS.sdb.xml'
+Tillage <- 'conventional' # 'conventional', 'min', else...N?
+PlantDOY
+
+
+
+```
+
+
+
+
