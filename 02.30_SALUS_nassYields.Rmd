@@ -260,11 +260,10 @@ UNC site says
 * corn, ear: 70
 * corn (in ear):35
 
-crop | pounds/bushel | kg/ha = x bu/acre
+crop | pounds/bushel | 1 bu/acre = 
 --------------- | ------ | --------
-corn | 56 | 0.0159
-soy/wheat | 60 | 0.0149
-sorghum, grain | 56 | 0.0159
+corn/sorghum | 56 | 62.89 kg/ha
+soy/wheat | 60 | 67.11 kg/ha
 
 From
 
@@ -274,14 +273,21 @@ From
 ```{r formatData}
 yield.raw <- read_csv(paste0(yieldDir,'/NASS_yields_KS_2006-2017_4crops_RAW.csv'))
 
+# conversions
+convertKey = data.frame(crop = c('CORN','SORGHUM', 'SOYBEANS', 'WHEAT'),
+                        conversion = c(62.89,62.89,67.11,67.11))
+
 # simplify
 yield.clean <- yield.raw %>%
   # make nicer columns for county/state fips and irrigated/not/all statuses
   mutate(type = sub(" .*", "", prodn_practice_desc),
          fips5 = paste0(state_fips_code, county_code)) %>%
-  rename(crop = commodity_desc, yield = Value) %>%
+  rename(crop = commodity_desc, yield_bu_acre = Value) %>%
+  left_join(convertKey) %>%
+  mutate(yield_kg_ha = yield_bu_acre * conversion) %>%
   # drop most columns
-  select(c(year, fips5, county_name, crop, type, yield, unit_desc, state_name)) %>%
+  select(c(year, fips5, county_name, crop, type, yield_kg_ha, yield_bu_acre, 
+           state_name)) %>%
   arrange(year, fips5, crop)
 
 #export
@@ -292,16 +298,16 @@ write.csv(yield.clean, row.names=FALSE,
 
 ## Visualize
 
-Overall regional yields by crop type and irrigation status:
+Overall regional yields by crop type and irrigation status: English units
 
 ```{r regionalYields}
 # format data
-regional <- yield.clean %>%
+regional_english <- yield.clean %>%
   group_by(year, crop, type) %>%
-  do(data.frame(t(quantile(.$yield, probs = c(.1, .25, .5, .75, .9),na.rm=TRUE))))
+  do(data.frame(t(quantile(.$yield_bu_acre, probs = c(.1, .25, .5, .75, .9),na.rm=TRUE))))
 
 # plot
-ggplot(regional, aes(x=year, y = X50., color = type)) +
+ggplot(regional_english, aes(x=year, y = X50., color = type)) +
   geom_ribbon(aes(x = year, ymin = X25., ymax = X75., fill=type), alpha = .4) +
   geom_line() +
   facet_wrap(~crop) +
@@ -310,6 +316,23 @@ ggplot(regional, aes(x=year, y = X50., color = type)) +
   theme_bw() + theme(legend.position = 'bottom', legend.title = element_blank())
 ```
 
+Overall regional yields by crop type and irrigation status: metric units
+
+```{r regionalYields_metric}
+# format data
+regional_metric <- yield.clean %>%
+  group_by(year, crop, type) %>%
+  do(data.frame(t(quantile(.$yield_kg_ha, probs = c(.1, .25, .5, .75, .9),na.rm=TRUE))))
+
+# plot
+ggplot(regional_metric, aes(x=year, y = X50., color = type)) +
+  geom_ribbon(aes(x = year, ymin = X25., ymax = X75., fill=type), alpha = .4) +
+  geom_line() +
+  facet_wrap(~crop) +
+  ylab('Yield (kg/ha)') + xlab('') + 
+  ggtitle('Median and IQR Yield, GMD4+ Counties') +
+  theme_bw() + theme(legend.position = 'bottom', legend.title = element_blank())
+```
 
 # State Yield
 Get yields at the state level since county data doesn't exist each year.
@@ -350,16 +373,23 @@ write.csv(state.df, row.names=FALSE,
 ```{r formatData2}
 state.raw <- read_csv(paste0(yieldDir,'/NASS_yields_STATE_KS_2006-2017_4crops_RAW.csv'))
 
+# conversions
+convertKey = data.frame(crop = c('CORN','SORGHUM', 'SOYBEANS', 'WHEAT'),
+                        conversion = c(62.89,62.89,67.11,67.11))
 # simplify
 state.clean <- state.raw %>%
   # remove forecast values
   filter(reference_period_desc == 'YEAR') %>%
   # make nicer columns for county/state fips and irrigated/not/all statuses
   mutate(type = sub(" .*", "", prodn_practice_desc)) %>%
-  rename(crop = commodity_desc, yield = Value) %>%
+  rename(crop = commodity_desc, yield_bu_acre = Value) %>%
+  # convert to kg/ha
+  left_join(convertKey) %>%
+  mutate(yield_kg_ha = yield_bu_acre * conversion) %>%
   # drop most columns
-  select(c(year, crop, type, yield, unit_desc, state_name)) %>%
+  select(c(year, crop, type, yield_kg_ha, yield_bu_acre, state_name)) %>%
   arrange(year, crop, type)
+ 
 
 #export
 write.csv(state.clean, row.names=FALSE, 
@@ -374,9 +404,16 @@ Overall STATE yields by crop type and irrigation status:
 ```{r stateYields}
 # plot
 ggplot(state.clean %>% filter(year < 2017), 
-       aes(x=year, y = yield, color = type)) +
+       aes(x=year, y = yield_bu_acre, color = type)) +
   geom_line() +
   facet_wrap(~crop) +
   ylab('Yield (BU/ACRE)') + xlab('') + ggtitle('Kansas State Yields') +
+  theme_bw() + theme(legend.position = 'bottom', legend.title = element_blank())
+
+ggplot(state.clean %>% filter(year < 2017), 
+       aes(x=year, y = yield_kg_ha, color = type)) +
+  geom_line() +
+  facet_wrap(~crop) +
+  ylab('Yield (kg/ha)') + xlab('') + ggtitle('Kansas State Yields') +
   theme_bw() + theme(legend.position = 'bottom', legend.title = element_blank())
 ```
