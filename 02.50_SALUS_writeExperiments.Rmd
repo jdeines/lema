@@ -45,10 +45,40 @@ summary(wheatDates$harvestedDOY_50, na.rm = TRUE)
 ```
 
 
-# write Xdb Function
+# write Xdb Functions
 Pieced together from examining the example .xdb.xmls', Lydia Rill and Brian Baer's python function, Lin's example, and SALUS help files
 
-```{r fun_writeXdb}
+I think I will break this up into 4 functions:
+
+* write_xdb_topMatter
+* write_xdb_experiment
+* write_xdb_rotation (with argument for being the last rotation = closes out Experiment)
+* write_xdb_bottomMatter
+
+Functions that could be added?
+
+* write_xdb_measured_data - I don't think I have measured data yet? would be entered below experiment at the same level of Rotation Components
+
+### Function 1: Write XDB Top Matter
+This function creates the file and add the 2 lines of top matter - not too much to it.
+
+```{r fun1_write_Top}
+# # arguments for development
+# outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
+
+write_xdb_topMatter <- function(outFile){
+    # write first rows, creates file (no append = true)
+  cat('<?xml version="1.0" encoding="utf-8"?>\n<XDB>\n',file=outFile)
+}
+
+# # test
+# write_xdb_topMatter(outFile)
+```
+
+### Function 2: Write XDB Experiment
+Writes the Experiment arguments. This section is closed in the `write_xdb_rotation` function.
+
+```{r fun2_write_Expt}
 # arguments for development
 outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
 ExpID <- 1
@@ -61,18 +91,14 @@ WthFile <- '1001.sdb.xml'
 SoilID <- 'KS1017570'
 SoilFile <- 'KS.sdb.xml'
 CropFile <- 'cropsn29Dec2016.cdb.xml'
-Tillage <- 'conventional' # 'conventional', 'min', else...N?
-PlantDOY <- 276 # median
-HarvestDOY <- 178 # median
 
-write_xdb <- function(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
-                      WthID, WthFile,SoilID, SoilFile, Tillage, PlantDOY, HarvestDOY){
+
+write_xdb_experiment <- function(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
+                      WthID, WthFile,SoilID, SoilFile, CropFile){
   # calculate subarguments
   nyear <- endYear - startYear + 1
   
-  # write first rows
-  cat('<?xml version="1.0" encoding="utf-8"?>\n<XDB>\n',file=outFile)
-  # write Experiment details
+  # write Experiment details - appends to previous file
   cat(paste0('  <Experiment ExpID="', ExpID, '" Title="', RunTitle, '" NYrs="', 
              nyear, '" SYear="', startYear, '" SOY="', startDOY,
              # some defaults
@@ -83,14 +109,20 @@ write_xdb <- function(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
              # some defaults
              '" NRrepSq="0" MeEvp="R" MeInf="R" kResOrg="3.914E-5" kSloOrg="0.00013699" >\n'),
       file=outFile, append=TRUE)
-  
-  
 }
 
-
-
+# test
+write_xdb_topMatter(outFile)
+write_xdb_experiment(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
+                     WthID, WthFile, SoilID, SoilFile, CropFile)
 ```
 
+
+
+
+Tillage <- 'conventional' # 'conventional', 'min', else...N?
+PlantDOY <- 276 # median
+HarvestDOY <- 178 # median
 
 
 
