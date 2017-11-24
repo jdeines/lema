@@ -40,25 +40,52 @@ dates <- read.csv(paste0(managementDir,'/NASS_dates_planting_maturity_harvest_KS
 
 # extract wheat means
 wheatDates <- dates %>% filter(crop == 'WHEAT')
-mean(wheatDates$plantingDOY_50)
-mean(wheatDates$harvestedDOY_50, na.rm = TRUE)
+summary(wheatDates$plantingDOY_50)
+summary(wheatDates$harvestedDOY_50, na.rm = TRUE)
 ```
 
 
 # write Xdb Function
-Modified from function from Lydia Rill and Brian Baer's python function, which focuses on corn - rye rotations from 1979 hardcode
+Pieced together from examining the example .xdb.xmls', Lydia Rill and Brian Baer's python function, Lin's example, and SALUS help files
 
 ```{r fun_writeXdb}
 # arguments for development
 outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
-ExpID <- 'wheatTest_continuous'
-RunTitle <- ''
+ExpID <- 1
+RunTitle <- 'wheatTestContinuous'
+startYear <- 2006
+endYear <- 2016
+startDOY <- 1
 WthID <- '1001'
 WthFile <- '1001.sdb.xml'
 SoilID <- 'KS1017570'
 SoilFile <- 'KS.sdb.xml'
+CropFile <- 'cropsn29Dec2016.cdb.xml'
 Tillage <- 'conventional' # 'conventional', 'min', else...N?
-PlantDOY
+PlantDOY <- 276 # median
+HarvestDOY <- 178 # median
+
+write_xdb <- function(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
+                      WthID, WthFile,SoilID, SoilFile, Tillage, PlantDOY, HarvestDOY){
+  # calculate subarguments
+  nyear <- endYear - startYear + 1
+  
+  # write first rows
+  cat('<?xml version="1.0" encoding="utf-8"?>\n<XDB>\n',file=outFile)
+  # write Experiment details
+  cat(paste0('  <Experiment ExpID="', ExpID, '" Title="', RunTitle, '" NYrs="', 
+             nyear, '" SYear="', startYear, '" SOY="', startDOY,
+             # some defaults
+             '" ISwWat="Y" ISwNit="Y" ISwPho="N" Frop="1" Soilfp="',
+             # soil, weather, crop files
+             SoilFile, '" SoilID="', SoilID, '" Weatherfp="', WthFile, 
+             '" StationID="', WthID, '" Cropfp="', CropFile, 
+             # some defaults
+             '" NRrepSq="0" MeEvp="R" MeInf="R" kResOrg="3.914E-5" kSloOrg="0.00013699" >\n'),
+      file=outFile, append=TRUE)
+  
+  
+}
 
 
 
