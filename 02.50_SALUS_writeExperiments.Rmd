@@ -118,11 +118,52 @@ write_xdb_experiment(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
 ```
 
 
+### Function 3: Write XDB Rotation_components
+Writes the Rotation arguments. This section has an argument for first/last rotation component to optionally include the beginning `<Rotation_Components>` start tag or the end tags for rotation and experiment.
 
+As always parameter descriptions at http://salusmodel.glg.msu.edu/salus.ddb.xml
 
-Tillage <- 'conventional' # 'conventional', 'min', else...N?
+```{r fun3_write_rotation}
+# arguments for development
+outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
+OrderNum <- 1
+pos <- 'first'
+Title <- 'Wheat'
+irrig <- 'N'  # 'N' - not, 'A' - auto, + more options
+fertilize <- 'R' # R = reported date, 'A' - auto, 'N' - not
+tillage <- 'N' # N = none, 'A' = automatic,, etc
+harvest <- 'R' #R - reported, 'M' = at maturity
 PlantDOY <- 276 # median
 HarvestDOY <- 178 # median
+
+# optional - default argument is 'middle'
+postition <- 'middle' # default; options = 'first' and 'last' 
+
+
+write_xdb_rotation <- function(outFile, OrderNum, Title, irrig, fertilize, tillage,
+                               harvest, position = 'middle'){
+  # open rotation components section if position == 'first'
+  if(position == 'first'){
+    cat('    <Rotation_Components>\n', file = outFile, append=TRUE)
+  }
+  
+  # write Component details - appends to previous file
+  cat(paste0('      <Component OrderNum="', OrderNum, '" Title="', Title, 
+             '" IPltI="R" IIrrI="', irrig, '" IferI="R" IResI="R" ITilI="', tillage,
+             '" IHarI="', harvest, '" IEnvI="N">\n'),
+      file=outFile, append=TRUE)
+}
+
+# test
+write_xdb_topMatter(outFile)
+write_xdb_experiment(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
+                     WthID, WthFile, SoilID, SoilFile, CropFile)
+write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage,
+                               harvest, position = pos)
+```
+
+
+
 
 
 
