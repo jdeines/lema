@@ -185,7 +185,7 @@ write_xdb_mPlanting <- function(outFile, cropModel, species, cultivar, year,
   
   # close component if specified
   if(closeComponent == 'Y'){
-    cat('      </Component>', file=outFile, append=TRUE)
+    cat('      </Component>\n', file=outFile, append=TRUE)
   }
 }
 
@@ -218,7 +218,7 @@ write_xdb_mFertilize <- function(outFile, year, DOY, Nfert, closeComponent = 'N'
   
   # close component if specified
   if(closeComponent == 'Y'){
-    cat('      </Component>', file=outFile, append=TRUE)
+    cat('      </Component>\n', file=outFile, append=TRUE)
   }
 }
 
@@ -234,24 +234,22 @@ write_xdb_mFertilize <- function(outFile, year, DOY, Nfert, closeComponent = 'N'
 ### Function Rotation Management: Harvest
 Make a reported (R, manual) function and an automatic 'A' function?
 
+So far just parameterized for year, doy
 
 ```{r fun3c_mHarvest}
 outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
-year_f <- 2007
-fertDOY <- 75 
-Nfert <- 78.47 # kg / ha
+year_h <- 2007
+harvestDOY <- 178 
 
-write_xdb_mHarvest <- function(outFile, year, DOY, Nfert, closeComponent = 'N'){
+write_xdb_mHarvest <- function(outFile, year, DOY, closeComponent = 'N'){
   # write management details - appends to previous file
-  cat(paste0('        <Mgt_Fertilizer_App Year="', year, '" DOY="', DOY, 
-             '" DAP="" IFType="FE010" FerCode="AP001" FInP="100" DFert="5" ACrbFer="0" ANFer="',
-             Nfert, '" APFer="0" AKFer="0" ACFer="0" AOFer="0" FOCod="" FerDecRt="0"',
-             ' VolN="0" VolNRate="0" />\n'),
+  cat(paste0('        <Mgt_Harvest_App Year="', year, '" DOY="', DOY, 
+             '" DAP="" HStg="" HCom="H" HSiz="" HPc="100" HBmin="0" HBPc="0" HKnDnPc="100" />\n'),
       file=outFile, append=TRUE)
   
   # close component if specified
   if(closeComponent == 'Y'){
-    cat('      </Component>', file=outFile, append=TRUE)
+    cat('      </Component>\n', file=outFile, append=TRUE)
   }
 }
 
@@ -262,9 +260,68 @@ write_xdb_experiment(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
 write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage, harvest)
 write_xdb_mPlanting(outFile, cropModel, species, cultivar, year, plantDOY)
 write_xdb_mFertilize(outFile, year_f, fertDOY, Nfert)
+write_xdb_mHarvest(outFile, year_h, harvestDOY, closeComponent = 'Y')
 ```
 
-HarvestDOY <- 178 # median
+
+## Function: Bottom Matter
+This closes elements and/or writes version control information
+
+```{r fun4_bottom}
+
+
+write_xdb_bottomMatter<- function(outFile, closeComponent = 'N', closeRotation = 'N', 
+                       closeExperiment = 'N', writeVersion = 'N', 
+                       closeXDB = 'N'){
+  # close component if specified
+  if(closeComponent == 'Y'){
+    cat('      </Component>\n', file=outFile, append=TRUE)
+  }
+  
+  # close rotation if specified
+  if(closeRotation == 'Y'){
+    cat('    </Rotation_Components>\n', file=outFile, append=TRUE)
+  }
+  
+  # close experiment if specified
+  if(closeExperiment == 'Y'){
+    cat('  </Experiment>\n', file=outFile, append=TRUE)
+  }
+  
+  # add version control info if specified
+  if(writeVersion == 'Y'){
+    cat(paste0('  <Version_Control>\n', '    <Version Number="1">\n',
+               '      <ReleaseDate>1999-11-26</ReleaseDate>\n',
+               '      <Notes>Initial release, beta version.</Notes>\n',
+               '    </Version>\n','    <Version Number="1.1">\n',
+               '      <ReleaseDate>1999-11-27</ReleaseDate>\n',
+               '      <Notes>testing...</Notes>\n',
+               '    </Version>\n','    <Version Number="1.2">\n',
+               '      <ReleaseDate>2011-06-07</ReleaseDate>\n',
+               '      <Notes>Added harvest parameters HBpc and Hbmin</Notes>\n',
+               '    </Version>\n','    <Version Number="1.3">\n',
+               '      <ReleaseDate>2012-12-13</ReleaseDate>\n',
+               '      <Notes>Added Relative File Path Flag (RelPath) -- B.D. Baer </Notes>\n',
+               '    </Version>\n','    <Version Number="X_1.1">\n',
+               '      <ReleaseDate>2014-03-20</ReleaseDate>\n',
+               '      <Notes>Automatically converted from Access DB by salus_access2xml program.</Notes>\n',
+                '    </Version>\n','  </Version_Control>\n'),
+        file=outFile, append=TRUE)
+  }
+
+  # close XDB
+  if(closeXDB == 'Y'){
+     cat('</XDB>\n', file=outFile, append=TRUE)
+  }
+  
+}
+
+# outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
+# write_xdb_bottomMatter(outFile, closeComponent = 'N', closeRotation = 'Y', 
+#                        closeExperiment = 'Y', writeVersion = 'Y', 
+#                        closeXDB = 'Y')
+```
+
 
 
 
