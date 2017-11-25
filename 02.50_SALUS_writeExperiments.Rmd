@@ -48,18 +48,22 @@ summary(wheatDates$harvestedDOY_50, na.rm = TRUE)
 # write Xdb Functions
 Pieced together from examining the example .xdb.xmls', Lydia Rill and Brian Baer's python function, Lin's example, and SALUS help files
 
-I think I will break this up into 4 functions:
+I think I will break this up into tiny buildable functions:
 
 * write_xdb_topMatter
 * write_xdb_experiment
-* write_xdb_rotation (with argument for being the last rotation = closes out Experiment)
+* write_xdb_rotation (with argument for first rotation: starts section)
+  * write_xdb_mPlanting - write planting parameters for crop rotation
+  * write_xdb_mFertilize -
+  * write_xdb_mHarvest
+  * etc
 * write_xdb_bottomMatter
 
 Functions that could be added?
 
 * write_xdb_measured_data - I don't think I have measured data yet? would be entered below experiment at the same level of Rotation Components
 
-### Function 1: Write XDB Top Matter
+## Function 1: Write XDB Top Matter
 This function creates the file and add the 2 lines of top matter - not too much to it.
 
 ```{r fun1_write_Top}
@@ -75,7 +79,7 @@ write_xdb_topMatter <- function(outFile){
 # write_xdb_topMatter(outFile)
 ```
 
-### Function 2: Write XDB Experiment
+## Function 2: Write XDB Experiment
 Writes the Experiment arguments. This section is closed in the `write_xdb_rotation` function.
 
 ```{r fun2_write_Expt}
@@ -118,8 +122,8 @@ write_xdb_experiment(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
 ```
 
 
-### Function 3: Write XDB Rotation_components
-Writes the Rotation arguments. This section has an argument for first/last rotation component to optionally include the beginning `<Rotation_Components>` start tag or the end tags for rotation and experiment.
+## Function 3: Write XDB Rotation_components
+Writes the Rotation arguments. If orderNum ==1, also includes the `<Rotation_Components>` start tag for rotation.
 
 As always parameter descriptions at http://salusmodel.glg.msu.edu/salus.ddb.xml
 
@@ -127,7 +131,6 @@ As always parameter descriptions at http://salusmodel.glg.msu.edu/salus.ddb.xml
 # arguments for development
 outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
 OrderNum <- 1
-pos <- 'first'
 Title <- 'Wheat'
 irrig <- 'N'  # 'N' - not, 'A' - auto, + more options
 fertilize <- 'R' # R = reported date, 'A' - auto, 'N' - not
@@ -136,14 +139,10 @@ harvest <- 'R' #R - reported, 'M' = at maturity
 PlantDOY <- 276 # median
 HarvestDOY <- 178 # median
 
-# optional - default argument is 'middle'
-postition <- 'middle' # default; options = 'first' and 'last' 
-
-
 write_xdb_rotation <- function(outFile, OrderNum, Title, irrig, fertilize, tillage,
-                               harvest, position = 'middle'){
+                               harvest){
   # open rotation components section if position == 'first'
-  if(position == 'first'){
+  if(OrderNum == 1){
     cat('    <Rotation_Components>\n', file = outFile, append=TRUE)
   }
   
@@ -158,12 +157,37 @@ write_xdb_rotation <- function(outFile, OrderNum, Title, irrig, fertilize, tilla
 write_xdb_topMatter(outFile)
 write_xdb_experiment(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
                      WthID, WthFile, SoilID, SoilFile, CropFile)
-write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage,
-                               harvest, position = pos)
+write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage, harvest)
+```
+
+### Function Rotation Management: Planting
+Make a reported (R, manual) function and an automatic 'A' function?
+
+```{r fun3a_mPlanting}
+outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
+cropModel <- 'C' # C = complex, S = simple
+species <- 'WH' # 'WH' = wheat
+cultivar <- 'P25R40'
+year <- 2006
+PlantDOY <- 276 # median
+
+write_xdb_mPlanting <- function(outFile, cropMod, plantDOY, ){
+  
+}
+
+
+  
+  
+# test
+write_xdb_topMatter(outFile)
+write_xdb_experiment(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
+                     WthID, WthFile, SoilID, SoilFile, CropFile)
+write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage, harvest)
 ```
 
 
 
+HarvestDOY <- 178 # median
 
 
 
