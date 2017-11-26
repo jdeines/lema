@@ -22,13 +22,14 @@ knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.50_salus_expt/',
 
 ```{r packages, warning=FALSE, message=FALSE}
 library(tidyverse)
+library(salustools) # from Jill's github
 ```
 
 **Directories**
 
 ```{r dirs}
 testDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/SALUS/testGUIrun/continuousWheat'
-
+testFile <- 'wheat_continuous.xdb.xml'
 ```
 
 ## Extract some management info
@@ -45,8 +46,8 @@ summary(wheatDates$harvestedDOY_50, na.rm = TRUE)
 ```
 
 
-# write Xdb Functions
-Pieced together from examining the example .xdb.xmls', Lydia Rill and Brian Baer's python function, Lin's example, and SALUS help files
+# Test Xdb Functions
+In the `salustools` package, I made a set of hopefully flexible functions to programmaticlly create a wide range of Experiment files. It was pieced together from examining the example .xdb.xmls', Lydia Rill and Brian Baer's python function, Lin's example, and SALUS help files
 
 I think I will break this up into tiny buildable functions:
 
@@ -57,269 +58,73 @@ I think I will break this up into tiny buildable functions:
   * write_xdb_mFertilize -
   * write_xdb_mHarvest
   * etc
-* write_xdb_bottomMatter
+* write_xdb_bottomMatter - closes above components as specified
 
 Functions that could be added?
 
 * write_xdb_measured_data - I don't think I have measured data yet? would be entered below experiment at the same level of Rotation Components
 
-## Function 1: Write XDB Top Matter
-This function creates the file and add the 2 lines of top matter - not too much to it.
+## Test: 2 wheat years
+use functions to make an Experiment file for 2 wheat 
 
-```{r fun1_write_Top}
-# # arguments for development
-# outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
+### Function parameters
+list of parameter arguments. in production, the would be tied together 
 
-write_xdb_topMatter <- function(outFile){
-    # write first rows, creates file (no append = true)
-  cat('<?xml version="1.0" encoding="utf-8"?>\n<XDB>\n',file=outFile)
-}
-
-# # test
-# write_xdb_topMatter(outFile)
-```
-
-## Function 2: Write XDB Experiment
-Writes the Experiment arguments. This section is closed in the `write_xdb_rotation` function.
-
-```{r fun2_write_Expt}
-# arguments for development
-outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
+```{r test_2wheat_parameters}
+outFile <- paste0(testDir,'/', testFile)
+# Experiment
 ExpID <- 1
-RunTitle <- 'wheatTestContinuous'
+RunTitle <- 'wheatTest2'
 startYear <- 2006
-endYear <- 2016
+NYrs <- 3
 startDOY <- 270
 WthID <- '1001'
-WthFile <- '1001.sdb.xml'
+WthFile <- '1001.wdb.xml'
 SoilID <- 'KS1017570'
 SoilFile <- 'KS.sdb.xml'
 CropFile <- 'cropsn29Dec2016.cdb.xml'
-
-
-write_xdb_experiment <- function(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
-                      WthID, WthFile,SoilID, SoilFile, CropFile){
-  # calculate subarguments
-  nyear <- endYear - startYear + 1
-  
-  # write Experiment details - appends to previous file
-  cat(paste0('  <Experiment ExpID="', ExpID, '" Title="', RunTitle, '" NYrs="', 
-             nyear, '" SYear="', startYear, '" SOY="', startDOY,
-             # some defaults
-             '" ISwWat="Y" ISwNit="Y" ISwPho="N" Frop="1" Soilfp="',
-             # soil, weather, crop files
-             SoilFile, '" SoilID="', SoilID, '" Weatherfp="', WthFile, 
-             '" StationID="', WthID, '" Cropfp="', CropFile, 
-             # some defaults
-             '" NRrepSq="0" MeEvp="R" MeInf="R" kResOrg="3.914E-5" kSloOrg="0.00013699" >\n'),
-      file=outFile, append=TRUE)
-}
-
-# # test
-# write_xdb_topMatter(outFile)
-# write_xdb_experiment(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
-#                      WthID, WthFile, SoilID, SoilFile, CropFile)
-```
-
-
-## Function 3: Write XDB Rotation_components
-Writes the Rotation arguments. If orderNum ==1, also includes the `<Rotation_Components>` start tag for rotation.
-
-As always parameter descriptions at http://salusmodel.glg.msu.edu/salus.ddb.xml
-
-```{r fun3_write_rotation}
-# arguments for development
-outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
+# rotation components
 OrderNum <- 1
 Title <- 'Wheat'
 irrig <- 'N'  # 'N' - not, 'A' - auto, + more options
 fertilize <- 'R' # R = reported date, 'A' - auto, 'N' - not
 tillage <- 'N' # N = none, 'A' = automatic,, etc
 harvest <- 'R' #R - reported, 'M' = at maturity
-PlantDOY <- 276 # median
-HarvestDOY <- 178 # median
-
-write_xdb_rotation <- function(outFile, OrderNum, Title, irrig, fertilize, tillage,
-                               harvest){
-  # open rotation components section if position == 'first'
-  if(OrderNum == 1){
-    cat('    <Rotation_Components>\n', file = outFile, append=TRUE)
-  }
-  
-  # write rotation details - appends to previous file
-  cat(paste0('      <Component OrderNum="', OrderNum, '" Title="', Title, 
-             '" IPltI="R" IIrrI="', irrig, '" IferI="R" IResI="R" ITilI="', tillage,
-             '" IHarI="', harvest, '" IEnvI="N">\n'),
-      file=outFile, append=TRUE)
-}
-
-# # test
-# write_xdb_topMatter(outFile)
-# write_xdb_experiment(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
-#                      WthID, WthFile, SoilID, SoilFile, CropFile)
-# write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage, harvest)
-```
-
-## Series of functions for rotation management
-
-
-### Function Rotation Management: Planting
-Make a reported (R, manual) function and an automatic 'A' function?
-
-```{r fun3a_mPlanting}
-outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
+# management - planting
 cropModel <- 'C' # C = complex, S = simple
 species <- 'WH' # 'WH' = wheat
 cultivar <- 'P25R40'
 year <- 2006
 PlantDOY <- 276 # median
-
-write_xdb_mPlanting <- function(outFile, cropModel, species, cultivar, year,
-                                plantDOY, closeComponent = 'N'){
-  # write management details - appends to previous file
-  cat(paste0('        <Mgt_Planting CropMod="', cropModel, '" SpeciesID="', species, 
-             '" CultivarID="', cultivar, '" Year="', year, '" DOY="', PlantDOY, 
-             '" EYear="" EDOY="" Ppop="494.21" Ppoe="494.21" PlMe="S" PlDs="R" RowSpc="19.05"',
-             ' AziR="" SDepth="4" SdWtPl="" SdAge="" ATemp="" PlPH="" />\n'),
-      file=outFile, append=TRUE)
-  
-  # close component if specified
-  if(closeComponent == 'Y'){
-    cat('      </Component>\n', file=outFile, append=TRUE)
-  }
-}
-
-# # test
-# write_xdb_topMatter(outFile)
-# write_xdb_experiment(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
-#                      WthID, WthFile, SoilID, SoilFile, CropFile)
-# write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage, harvest)
-# write_xdb_mPlanting(outFile, cropModel, species, cultivar, year, plantDOY, closeComponent = 'Y')
-```
-
-### Function Rotation Management: Fertilizer
-Make a reported (R, manual) function and an automatic 'A' function?
-
-So far just parameterized for year, doy, and N in applied fertilizer - only things that varied between the example maize and wheat.
-
-```{r fun3b_mFertlize}
-outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
+# management - fertilizer
 year_f <- 2007
 fertDOY <- 75 
 Nfert <- 78.47 # kg / ha
-
-write_xdb_mFertilize <- function(outFile, year, DOY, Nfert, closeComponent = 'N'){
-  # write management details - appends to previous file
-  cat(paste0('        <Mgt_Fertilizer_App Year="', year, '" DOY="', DOY, 
-             '" DAP="" IFType="FE010" FerCode="AP001" FInP="100" DFert="5" ACrbFer="0" ANFer="',
-             Nfert, '" APFer="0" AKFer="0" ACFer="0" AOFer="0" FOCod="" FerDecRt="0"',
-             ' VolN="0" VolNRate="0" />\n'),
-      file=outFile, append=TRUE)
-  
-  # close component if specified
-  if(closeComponent == 'Y'){
-    cat('      </Component>\n', file=outFile, append=TRUE)
-  }
-}
-
-# # test
-# write_xdb_topMatter(outFile)
-# write_xdb_experiment(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
-#                      WthID, WthFile, SoilID, SoilFile, CropFile)
-# write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage, harvest)
-# write_xdb_mPlanting(outFile, cropModel, species, cultivar, year, plantDOY)
-# write_xdb_mFertilize(outFile, year_f, fertDOY, Nfert)
-```
-
-### Function Rotation Management: Harvest
-Make a reported (R, manual) function and an automatic 'A' function?
-
-So far just parameterized for year, doy
-
-```{r fun3c_mHarvest}
-outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
+# management - harvest
 year_h <- 2007
 harvestDOY <- 178 
-
-write_xdb_mHarvest <- function(outFile, year, DOY, closeComponent = 'N'){
-  # write management details - appends to previous file
-  cat(paste0('        <Mgt_Harvest_App Year="', year, '" DOY="', DOY, 
-             '" DAP="" HStg="" HCom="H" HSiz="" HPc="100" HBmin="0" HBPc="0" HKnDnPc="100" />\n'),
-      file=outFile, append=TRUE)
-  
-  # close component if specified
-  if(closeComponent == 'Y'){
-    cat('      </Component>\n', file=outFile, append=TRUE)
-  }
-}
-
-# test
-write_xdb_topMatter(outFile)
-write_xdb_experiment(outFile, ExpID, RunTitle, startYear, endYear, startDOY,
-                     WthID, WthFile, SoilID, SoilFile, CropFile)
-write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage, harvest)
-write_xdb_mPlanting(outFile, cropModel, species, cultivar, year, plantDOY)
-write_xdb_mFertilize(outFile, year_f, fertDOY, Nfert)
-write_xdb_mHarvest(outFile, year_h, harvestDOY, closeComponent = 'Y')
 ```
 
+Build the Experiment Files from my functions!
 
-## Function: Bottom Matter
-This closes elements and/or writes version control information
-
-```{r fun4_bottom}
-
-
-write_xdb_bottomMatter<- function(outFile, closeComponent = 'N', closeRotation = 'N', 
-                       closeExperiment = 'N', writeVersion = 'N', 
-                       closeXDB = 'N'){
-  # close component if specified
-  if(closeComponent == 'Y'){
-    cat('      </Component>\n', file=outFile, append=TRUE)
-  }
-  
-  # close rotation if specified
-  if(closeRotation == 'Y'){
-    cat('    </Rotation_Components>\n', file=outFile, append=TRUE)
-  }
-  
-  # close experiment if specified
-  if(closeExperiment == 'Y'){
-    cat('  </Experiment>\n', file=outFile, append=TRUE)
-  }
-  
-  # add version control info if specified
-  if(writeVersion == 'Y'){
-    cat(paste0('  <Version_Control>\n', '    <Version Number="1">\n',
-               '      <ReleaseDate>1999-11-26</ReleaseDate>\n',
-               '      <Notes>Initial release, beta version.</Notes>\n',
-               '    </Version>\n','    <Version Number="1.1">\n',
-               '      <ReleaseDate>1999-11-27</ReleaseDate>\n',
-               '      <Notes>testing...</Notes>\n',
-               '    </Version>\n','    <Version Number="1.2">\n',
-               '      <ReleaseDate>2011-06-07</ReleaseDate>\n',
-               '      <Notes>Added harvest parameters HBpc and Hbmin</Notes>\n',
-               '    </Version>\n','    <Version Number="1.3">\n',
-               '      <ReleaseDate>2012-12-13</ReleaseDate>\n',
-               '      <Notes>Added Relative File Path Flag (RelPath) -- B.D. Baer </Notes>\n',
-               '    </Version>\n','    <Version Number="X_1.1">\n',
-               '      <ReleaseDate>2014-03-20</ReleaseDate>\n',
-               '      <Notes>Automatically converted from Access DB by salus_access2xml program.</Notes>\n',
-                '    </Version>\n','  </Version_Control>\n'),
-        file=outFile, append=TRUE)
-  }
-
-  # close XDB
-  if(closeXDB == 'Y'){
-     cat('</XDB>\n', file=outFile, append=TRUE)
-  }
-  
-}
-
-# outFile <- paste0(testDir,'/wheat_continuous.xdb.xml')
-# write_xdb_bottomMatter(outFile, closeComponent = 'N', closeRotation = 'Y', 
-#                        closeExperiment = 'Y', writeVersion = 'Y', 
-#                        closeXDB = 'Y')
+```{r test_2wheat}
+write_xdb_topMatter(outFile)
+write_xdb_experiment(outFile, ExpID, RunTitle, startYear, NYrs, startDOY, 
+                     WthID, WthFile, SoilID, SoilFile, CropFile)
+# year 1
+write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage, harvest)
+write_xdb_mPlanting(outFile, cropModel, species, cultivar, year, PlantDOY)
+write_xdb_mFertilize(outFile, year_f, fertDOY, Nfert)
+write_xdb_mHarvest(outFile, year_h, harvestDOY, closeComponent = 'Y')
+# year 2
+write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage, harvest)
+write_xdb_mPlanting(outFile, cropModel, species, cultivar, year+1, PlantDOY)
+write_xdb_mFertilize(outFile, year_f+1, fertDOY, Nfert)
+write_xdb_mHarvest(outFile, year_h+1, harvestDOY, closeComponent = 'Y')
+# close out
+write_xdb_bottomMatter(outFile, closeComponent = 'N', closeRotation = 'Y', 
+                        closeExperiment = 'Y', writeVersion = 'Y', 
+                        closeXDB = 'Y')
 ```
 
 
