@@ -205,7 +205,7 @@ annualSpecs <- wheatDates %>%
          cropModel = 'C',
          species = 'WH',
          cultivar = 'P25R40') %>%
-  filter(year <= 2017)
+  filter(year <= 2016)
 
 # Experiment Table
 exp_master <- bestSoil %>%
