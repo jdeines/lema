@@ -25,6 +25,7 @@ library(tidyverse)
 library(stringr)
 library(sf)
 library(salustools) # from Jill's github
+library(lubridate)
 ```
 
 **Directories**
@@ -191,7 +192,9 @@ Run all 11 experiments to also see how my `write_xdb_*` functions scale when in 
 # table of annual specifications: median planting and harvest dates, fertililzation,
 # and other component parameters
 annualSpecs <- wheatDates %>%
-  select(c('year','crop','plantingDOY_50','harvestedDOY_50')) %>%
+  mutate(plantYear = year(ymd(plantingDate_50)),
+         harvYear = year(ymd(harvestDate_50))) %>%
+  select(c('year','crop','plantingDOY_50','harvestedDOY_50','plantYear','harvYear')) %>%
   # add a generic fertilization date and amount
   mutate(fertDOY = 75,
          Nfert = 78.47,
@@ -201,7 +204,8 @@ annualSpecs <- wheatDates %>%
          harvest = 'R',
          cropModel = 'C',
          species = 'WH',
-         cultivar = 'P25R40')
+         cultivar = 'P25R40') %>%
+  filter(year <= 2017)
 
 # Experiment Table
 exp_master <- bestSoil %>%
@@ -211,77 +215,49 @@ exp_master <- bestSoil %>%
          weatherfp = paste0(nldas,'.wdb.xml'),
          ExpID = 1:nrow(bestSoil),
          runTitle = paste0('Wheat-',soilId,'-',nldas),
-         startYear = 2006,
-         Nyrs = 10,
+         startYear = 2005,
+         Nyrs = 11,
          startDOY = 265,
          cropfp = 'cropsn29Dec2016.cdb.xml')
 
 
-outFile <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/SALUS/testGUIrun/lemaWheatContinuous/lema_wheat_continuous.xdb.xml'
+outFile2 <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/SALUS/testGUIrun/lemaWheatContinuous/lema_wheat_continuous.xdb.xml'
 
 # Write the file! --------------------------------------------------------------
 
 # initialize the file
-write_xdb_topMatter(outFile)
+write_xdb_topMatter(outFile2)
 
 # for each experiment:
 for(i in 1:nrow(exp_master)){  
   # write each set of experiment parameters
-  write_xdb_experiment(outFile, exp_master$ExpID[i], exp_master$runTitle[i], 
+  write_xdb_experiment(outFile2, exp_master$ExpID[i], exp_master$runTitle[i], 
                        exp_master$startYear[i], exp_master$Nyrs[i], exp_master$startDOY[i], 
                        exp_master$nldas[i], exp_master$weatherfp[i], exp_master$soilId[i], 
                        exp_master$soilfp[i], exp_master$cropfp[i])
+  # write rotation and management parameters for each year
   for(m in 1:nrow(annualSpecs)){
-    # write rotation and management parameters for each year
-    
-    # year 1
-    write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage, harvest)
-    write_xdb_mPlanting(outFile, cropModel, species, cultivar, year, PlantDOY)
-    write_xdb_mFertilize(outFile, year_f, fertDOY, Nfert)
-    write_xdb_mHarvest(outFile, year_h, harvestDOY, closeComponent = 'Y')
-    # year 2
-    write_xdb_rotation(outFile, OrderNum+1, Title, irrig, fertilize, tillage, harvest)
-    write_xdb_mPlanting(outFile, cropModel, species, cultivar, year+1, PlantDOY)
-    write_xdb_mFertilize(outFile, year_f+1, fertDOY, Nfert)
-    write_xdb_mHarvest(outFile, year_h+1, harvestDOY, closeComponent = 'Y')
+    # rotation parameters
+    write_xdb_rotation(outFile2, m, annualSpecs$crop[m], annualSpecs$irrig[m], 
+                       annualSpecs$fertilize[m], annualSpecs$tillage[m], 
+                       annualSpecs$harvest[m])
+    # management: planting
+    write_xdb_mPlanting(outFile2, annualSpecs$cropModel[m], annualSpecs$species[m], 
+                        annualSpecs$cultivar[m], annualSpecs$plantYear[m], 
+                        annualSpecs$plantingDOY_50[m])
+    # management: fertilize
+    write_xdb_mFertilize(outFile2, annualSpecs$harvYear[m], annualSpecs$fertDOY[m],
+                         annualSpecs$Nfert[m])
+    # management: harvest
+    write_xdb_mHarvest(outFile2, annualSpecs$harvYear[m], annualSpecs$harvestedDOY_50[m], 
+                       closeComponent = 'Y')
   }  
+  # close rotations and experiment
+  write_xdb_bottomMatter(outFile2, closeRotation = 'Y', closeExperiment = 'Y')
 }  
-    # close out
-write_xdb_bottomMatter(outFile, closeComponent = 'N', closeRotation = 'Y', 
-                        closeExperiment = 'Y', writeVersion = 'Y', 
-                        closeXDB = 'Y')
+# close out
+write_xdb_bottomMatter(outFile2, writeVersion = 'Y', closeXDB = 'Y')
 
-# Experiment
-ExpID <- 1
-RunTitle <- 'wheatTest2'
-startYear <- 2006
-NYrs <- 3
-startDOY <- 270
-WthID <- '1001'
-WthFile <- '1001.wdb.xml'
-SoilID <- 'KS1017570'
-SoilFile <- 'KS.sdb.xml'
-CropFile <- 'cropsn29Dec2016.cdb.xml'
-# rotation components
-OrderNum <- 1
-Title <- 'Wheat'
-irrig <- 'N'  # 'N' - not, 'A' - auto, + more options
-fertilize <- 'R' # R = reported date, 'A' - auto, 'N' - not
-tillage <- 'N' # N = none, 'A' = automatic,, etc
-harvest <- 'R' #R - reported, 'M' = at maturity
-# management - planting
-cropModel <- 'C' # C = complex, S = simple
-species <- 'WH' # 'WH' = wheat
-cultivar <- 'P25R40'
-year <- 2006
-PlantDOY <- 276 # median
-# management - fertilizer
-year_f <- 2007
-fertDOY <- 75 
-Nfert <- 78.47 # kg / ha
-# management - harvest
-year_h <- 2007
-harvestDOY <- 178 
 ```
 
 
