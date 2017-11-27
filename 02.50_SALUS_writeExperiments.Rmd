@@ -26,6 +26,7 @@ library(stringr)
 library(sf)
 library(salustools) # from Jill's github
 library(lubridate)
+library(viridis)
 ```
 
 **Directories**
@@ -111,7 +112,7 @@ harvestDOY <- 178
 
 Build the Experiment Files from my functions!
 
-```{r test_2wheat}
+```{r test_2wheat, eval=FALSE}
 write_xdb_topMatter(outFile)
 write_xdb_experiment(outFile, ExpID, RunTitle, startYear, NYrs, startDOY, 
                      WthID, WthFile, SoilID, SoilFile, CropFile)
@@ -188,7 +189,7 @@ Run these 11 experiments!
 ## Generate Experiment file for these dominant soils in LEMA
 Run all 11 experiments to also see how my `write_xdb_*` functions scale when in use for actual scenarios
 
-```{r lemaWheat}
+```{r lemaWheat, eval=FALSE}
 # table of annual specifications: median planting and harvest dates, fertililzation,
 # and other component parameters
 annualSpecs <- wheatDates %>%
@@ -262,5 +263,54 @@ write_xdb_bottomMatter(outFile2, writeVersion = 'Y', closeXDB = 'Y')
 Hey, that worked like a charm, first go!
 
 ## Examine results
-Specifically interested in the soil water
+Specifically interested in the soil water to determine good start dates for annual reinitialization
 
+### Soil water
+Salus automatically chops subsurface into 20 layers denoted here: http://salusmodel.glg.msu.edu/tools/layers.html. Note the sw variable units is soil water content, m^3 / m^3
+
+Here, I get the weighted average for the top 1.25 meter (first 9 layers) using:
+
+* SW_tot = SW_lay * thick_lay/sum(thick_lay)
+
+```{r salusOutput}
+# load DAILY output
+resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/SALUS/testGUIrun/lemaWheatContinuous/results'
+daily <- read_csv(paste0(resultsDir, '/salus.day.csv')) %>%
+  select(c('Title','Year','DOY','PREC','SW(1)','SW(2)','SW(3)','SW(4)','SW(5)',
+           'SW(6)','SW(7)','SW(8)','SW(9)'))
+
+# set layer thicknesses, in meters
+layerKey <- data.frame(layerNum = as.character(c(1:9)),
+                       layerThick = c(2,5,8,11,14,17,20,23,25)/100)
+sumThick <- sum(layerKey$layerThick)
+
+# longify data, extract layer number as a column, join with layer thickness
+sw_long <- daily %>% gather(key = swLayer, value = swContent.m3.m3, `SW(1)`:`SW(9)`) %>%
+  mutate(layerNum = str_sub(swLayer, start = -2, end = -2)) %>%
+  left_join(layerKey)
+
+# get the weighted average for each DOY
+sw_total <- sw_long %>%
+  mutate(swTot_lay = swContent.m3.m3 * (layerThick / sumThick)) %>%
+  group_by(Title, Year, DOY) %>%
+  summarise(SWTot = sum(swTot_lay))
+```
+
+#### Plot: soil water
+
+```{r plotSW_all}
+ggplot(sw_total, aes(x = DOY, y = SWTot, color = as.factor(Year))) +
+  geom_line() +
+  scale_color_viridis(direction = -1, discrete=TRUE) +
+  facet_wrap(~Title)
+
+# just one Experiment
+one <- sw_total %>% filter(Title == 'Wheat-KS2759231-1124')
+ggplot(one, 
+       aes(x = DOY, y = SWTot, color = as.factor(Year))) +
+  geom_line() +
+  scale_color_viridis(direction = -1, discrete=TRUE) +
+  ggtitle('Surface water content by Year, dryland wheat')
+```
+
+Well, that's enough of an answer - soil water is highly variable among years, I should shoot for continuous.
