@@ -22,10 +22,13 @@ knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.50_salus_expt/',
 
 ```{r packages, warning=FALSE, message=FALSE}
 library(tidyverse)
+library(stringr)
+library(sf)
 library(salustools) # from Jill's github
 ```
 
 **Directories**
+meh, there directories set all throughout this script
 
 ```{r dirs}
 testDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/SALUS/testGUIrun/continuousWheat'
@@ -117,7 +120,7 @@ write_xdb_mPlanting(outFile, cropModel, species, cultivar, year, PlantDOY)
 write_xdb_mFertilize(outFile, year_f, fertDOY, Nfert)
 write_xdb_mHarvest(outFile, year_h, harvestDOY, closeComponent = 'Y')
 # year 2
-write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage, harvest)
+write_xdb_rotation(outFile, OrderNum+1, Title, irrig, fertilize, tillage, harvest)
 write_xdb_mPlanting(outFile, cropModel, species, cultivar, year+1, PlantDOY)
 write_xdb_mFertilize(outFile, year_f+1, fertDOY, Nfert)
 write_xdb_mHarvest(outFile, year_h+1, harvestDOY, closeComponent = 'Y')
@@ -127,6 +130,158 @@ write_xdb_bottomMatter(outFile, closeComponent = 'N', closeRotation = 'Y',
                         closeXDB = 'Y')
 ```
 
+Report: It totally worked!
 
+# Run Continuous Wheat
+
+Run 10 years of wheat to see when a good time to re-start the year might be, and at what value soil water should be initialized at.
+
+## Extract real world wheat scenarios
+Load my unique combinations in order to select soils which commonly have wheat on them
+
+```{r getCombos}
+# dirs
+rootDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus'
+comboDir <- 'combinationGrids'
+allUnique <- 'allUnique_gmd4p_top6_2006-2016.csv'
+
+# load unique combinations
+uniques <- read_csv(paste0(rootDir, '/', comboDir, '/', allUnique))
+names(uniques) <- 'rasterCode'
+uniques <- uniques[-1,]
+  
+# parse into informative columns and extract dryland wheat in KS
+uniqueSpread <- uniques %>%
+  mutate(irr = str_sub(rasterCode, start = -1, end = -1),
+         cdl = str_sub(rasterCode, start = -4, end = -2),
+         nldas = str_sub(rasterCode, start = -8, end = -5),
+         mukey = str_sub(rasterCode, start = -15, end = -9),
+         state = str_sub(rasterCode, start = -17, end = -16)) %>%
+  filter(cdl == '024' & irr == '0' & state == '20')
+
+# keep only NLDAS grids within LEMA ------------------------------------------
+# load nldas
+weatherDir <- 'weather/nldas_Jill/nldas_centroidExtract'
+weatherPolyName <- 'NLDAS_clipped_gmd4p.shp'
+nldasPolys <- read_sf(paste(rootDir, weatherDir, weatherPolyName, sep = '/'))
+# load lema
+lema <- read_sf('C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries/Sheridan6_trace.shp') %>% st_transform(4326)
+# get nldas cells
+lemaNldas <- st_intersection(nldasPolys,lema)
+lemagrids <- as.character(lemaNldas$gridCll)
+
+uniqueLema <- uniqueSpread %>%
+  filter(nldas %in% lemagrids)
+
+# that gives 96 combinations. 
+# actually, I just identified the largest soil polygon within LEMA in ArcGIS: 
+# biggest: 2759231
+# next biggest: 1150000
+
+bestSoil <- uniqueLema %>% filter(mukey %in% c('2759231','1150000'))
+bestSoil
+```
+
+Run these 11 experiments!
+
+## Generate Experiment file for these dominant soils in LEMA
+Run all 11 experiments to also see how my `write_xdb_*` functions scale when in use for actual scenarios
+
+```{r lemaWheat}
+# table of annual specifications: median planting and harvest dates, fertililzation,
+# and other component parameters
+annualSpecs <- wheatDates %>%
+  select(c('year','crop','plantingDOY_50','harvestedDOY_50')) %>%
+  # add a generic fertilization date and amount
+  mutate(fertDOY = 75,
+         Nfert = 78.47,
+         irrig = 'N',
+         fertilize = 'R',
+         tillage = 'N',
+         harvest = 'R',
+         cropModel = 'C',
+         species = 'WH',
+         cultivar = 'P25R40')
+
+# Experiment Table
+exp_master <- bestSoil %>%
+  mutate(soilId = paste0('KS',mukey)) %>%
+  select(c(nldas, soilId)) %>%
+  mutate(soilfp = 'KS.sdb.xml',
+         weatherfp = paste0(nldas,'.wdb.xml'),
+         ExpID = 1:nrow(bestSoil),
+         runTitle = paste0('Wheat-',soilId,'-',nldas),
+         startYear = 2006,
+         Nyrs = 10,
+         startDOY = 265,
+         cropfp = 'cropsn29Dec2016.cdb.xml')
+
+
+outFile <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/SALUS/testGUIrun/lemaWheatContinuous/lema_wheat_continuous.xdb.xml'
+
+# Write the file! --------------------------------------------------------------
+
+# initialize the file
+write_xdb_topMatter(outFile)
+
+# for each experiment:
+for(i in 1:nrow(exp_master)){  
+  # write each set of experiment parameters
+  write_xdb_experiment(outFile, exp_master$ExpID[i], exp_master$runTitle[i], 
+                       exp_master$startYear[i], exp_master$Nyrs[i], exp_master$startDOY[i], 
+                       exp_master$nldas[i], exp_master$weatherfp[i], exp_master$soilId[i], 
+                       exp_master$soilfp[i], exp_master$cropfp[i])
+  for(m in 1:nrow(annualSpecs)){
+    # write rotation and management parameters for each year
+    
+    # year 1
+    write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage, harvest)
+    write_xdb_mPlanting(outFile, cropModel, species, cultivar, year, PlantDOY)
+    write_xdb_mFertilize(outFile, year_f, fertDOY, Nfert)
+    write_xdb_mHarvest(outFile, year_h, harvestDOY, closeComponent = 'Y')
+    # year 2
+    write_xdb_rotation(outFile, OrderNum+1, Title, irrig, fertilize, tillage, harvest)
+    write_xdb_mPlanting(outFile, cropModel, species, cultivar, year+1, PlantDOY)
+    write_xdb_mFertilize(outFile, year_f+1, fertDOY, Nfert)
+    write_xdb_mHarvest(outFile, year_h+1, harvestDOY, closeComponent = 'Y')
+  }  
+}  
+    # close out
+write_xdb_bottomMatter(outFile, closeComponent = 'N', closeRotation = 'Y', 
+                        closeExperiment = 'Y', writeVersion = 'Y', 
+                        closeXDB = 'Y')
+
+# Experiment
+ExpID <- 1
+RunTitle <- 'wheatTest2'
+startYear <- 2006
+NYrs <- 3
+startDOY <- 270
+WthID <- '1001'
+WthFile <- '1001.wdb.xml'
+SoilID <- 'KS1017570'
+SoilFile <- 'KS.sdb.xml'
+CropFile <- 'cropsn29Dec2016.cdb.xml'
+# rotation components
+OrderNum <- 1
+Title <- 'Wheat'
+irrig <- 'N'  # 'N' - not, 'A' - auto, + more options
+fertilize <- 'R' # R = reported date, 'A' - auto, 'N' - not
+tillage <- 'N' # N = none, 'A' = automatic,, etc
+harvest <- 'R' #R - reported, 'M' = at maturity
+# management - planting
+cropModel <- 'C' # C = complex, S = simple
+species <- 'WH' # 'WH' = wheat
+cultivar <- 'P25R40'
+year <- 2006
+PlantDOY <- 276 # median
+# management - fertilizer
+year_f <- 2007
+fertDOY <- 75 
+Nfert <- 78.47 # kg / ha
+# management - harvest
+year_h <- 2007
+harvestDOY <- 178 
+```
 
 
