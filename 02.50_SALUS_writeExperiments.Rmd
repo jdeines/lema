@@ -257,7 +257,10 @@ for(i in 1:nrow(exp_master)){
 }  
 # close out
 write_xdb_bottomMatter(outFile2, writeVersion = 'Y', closeXDB = 'Y')
-
 ```
 
+Hey, that worked like a charm, first go!
+
+## Examine results
+Specifically interested in the soil water
 
