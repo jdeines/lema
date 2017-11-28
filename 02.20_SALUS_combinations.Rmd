@@ -21,6 +21,7 @@ library(rgdal)
 library(raster)
 library(tidyverse)
 library(sf)
+library(stringr)
 ```
 
 # user parameters
@@ -134,7 +135,7 @@ length(unique(weatherPoly$gridCll))
 weatherGrid <- rasterize(weatherPoly, template, field='gridCll',background=NA)
 spplot(weatherGrid)
 
-#writeRaster(soilGridMask, paste0(rootDir,'/',weatherDir,'/NLDAS_gmd4p_aea30.tif'))
+#writeRaster(weatherGrid, paste0(rootDir,'/',weatherDir,'/NLDAS_gmd4p_aea30.tif'))
 ```
 
 137 unique weather grid cells from NLDAS
@@ -169,6 +170,12 @@ Irrigation status and Crop type change annually. Combine annual CDL/irrigation s
 # load static variable base raster
 static <- raster(paste(rootDir, comboDir, comboStaticName, sep='/'))
 
+# value check - all static cells end in 0000
+staticVector <- as.vector(t(as.matrix(static)))
+stv <- staticVector[!is.na(staticVector)]
+stv4 <- str_sub(stv, start = -4, end = -1)
+unique(stv4)
+
 # output df for combos
 annualCombos <- setNames(data.frame(matrix(ncol = length(yearsWanted), 
                                            nrow=ncell(static))),
@@ -185,10 +192,14 @@ for(year in yearsWanted){
   
   # fix the cdl mask exported from GEE (mask 0 values)
   cdl[cdl < 1] <- NA 
+  dataType(cdl) <- 'INT2U'
   
   # combine with irrigation and eliminate impossibilities
   cdlpad <- cdl*10
   cdlIrr <- cdlpad + irrigation
+  
+  # reset any irrigated grassland to dryland
+  cdlIrr[cdlIrr == 1761] <- 1760
   
   # # how much irrigated grassland? for 2016, 0.016%
   # impossible <- freq(cdlIrr, value = 1761)
@@ -196,7 +207,29 @@ for(year in yearsWanted){
   # percentImpossible <- impossible/(ncell(cdlIrr)-naCells)
   
   # combo raster and export
-  combo <- static + cdlIrr
+  staticMask <- mask(static, cdlIrr)
+  combo <- staticMask + cdlIrr
+  
+  # value check - all static cells end in 0000
+  staticVector <- as.vector(t(as.matrix(staticMask)))
+  stv <- staticVector[!is.na(staticVector)]
+  stv4 <- str_sub(stv, start = -4, end = -1)
+  unique(stv4)
+
+  # value check - did weird irrigation values get introduced here?
+  comboVector <- as.vector(t(as.matrix(combo)))
+  ctv <- comboVector[!is.na(comboVector)]
+  ctv4 <- str_sub(ctv, start = -4, end = -1)
+  unique(ctv4) # 1,4,5,24,61,176 are valid cdl croptypes
+  
+  combotest <- getValues(combo)
+  ct.nona <- combotest[!is.na(combotest)]
+  ct.ch <- as.character(ct.nona)
+  ctch4base <- substr(ct.ch, start=14, 17)
+  
+  ct4 <- str_sub(ct.nona, start = -4, end = -1)
+  ctch4 <- str_sub(ct.ch, start = -4, end = -1)
+    
   writeRaster(combo, paste0(rootDir, '/', comboDir, '/', year, comboDynamicName))
   
   # turn to vector, by row
@@ -225,5 +258,44 @@ allUniques <- unique(combo.long$combo)
 # save both of these
 write.csv(allUniques, row.names = F, file = paste0(rootDir, '/', comboDir, '/', allUnique))
 save(uniques, file = paste0(rootDir, '/', comboDir, '/', annualUnique))
+```
+
+## Why are there weird values for Irrigation?
+Later step: noticed irrigation had values 0,1,2,8. where did 2 and 8 come from?
+
+CDL value review: 1 = corn, 4 = sorghum, 5 = soybeans, 24 = winter wheat, 61 = fallow, 176 = grassland
+
+```{r trouble}
+# dirs
+rootDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus'
+comboDir <- 'combinationGrids'
+allUnique <- 'allUnique_gmd4p_top6_2006-2016.csv'
+
+# load unique combinations
+uniques <- read_csv(paste0(rootDir, '/', comboDir, '/', allUnique))
+names(uniques) <- 'rasterCode'
+uniques <- uniques[-1,]
+  
+# parse into informative columns and extract dryland wheat in KS
+uniqueSpread <- uniques %>%
+  mutate(irr = str_sub(rasterCode, start = -1, end = -1),
+         cdl = str_sub(rasterCode, start = -4, end = -2),
+         nldas = str_sub(rasterCode, start = -8, end = -5),
+         mukey = str_sub(rasterCode, start = -15, end = -9),
+         state = str_sub(rasterCode, start = -17, end = -16))
+unique(uniqueSpread$irr)
+unique(uniqueSpread$cdl)
+unique(uniqueSpread$state)
+uniqueSpread %>% filter(irr == 2)
+```
+
+## Unique rotational trajectories
+SALUS runs continuously, so I actually need unique combinations of soil-climate-crop sequences for the duration of the experiment.
+
+Just how many is that? Let's find out.
+
+```{r unique2}
+# load
+load(file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
 ```
 
