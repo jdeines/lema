@@ -235,57 +235,37 @@ save(annualCombos, file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
 ```
 
 # Get Unique Experiments
-Get unique combinations. I think I'm going to get the unique ones across the full time period, and run each for all years, to simplify having to specify what years to run for each experiment. maybe? maybe not. I don't know.
+Get unique combinations. My first idea was to get unique combinations in all years, and run SALUS annually. It turns out the variability in soil water content makes this idea not great. 
 
 ```{r unique, eval=FALSE}
 # load
 load(file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
 
 # get all unique combos
-uniques <- apply(annualCombos, 2, function(x) unique(x))
+uniques <- apply(annualCombos[,-1], 2, function(x) unique(x))
+
+# how many unique combinations each year?
+str(uniques)
 
 # get total unique across all years
 combo.long <- gather(annualCombos, key = year, value = combo, x2006:x2016) 
 allUniques <- unique(combo.long$combo)
+length(allUniques)
 
 # save both of these
 write.csv(allUniques, row.names = F, file = paste0(rootDir, '/', comboDir, '/', allUnique))
 save(uniques, file = paste0(rootDir, '/', comboDir, '/', annualUnique))
 ```
 
-## Why are there weird values for Irrigation?
-Later step: noticed irrigation had values 0,1,2,8. where did 2 and 8 come from?
-
-CDL value review: 1 = corn, 4 = sorghum, 5 = soybeans, 24 = winter wheat, 61 = fallow, 176 = grassland
-
-```{r trouble}
-# dirs
-rootDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus'
-comboDir <- 'combinationGrids'
-allUnique <- 'allUnique_gmd4p_top6_2006-2016.csv'
-
-# load unique combinations
-uniques <- read_csv(paste0(rootDir, '/', comboDir, '/', allUnique))
-names(uniques) <- 'rasterCode'
-uniques <- uniques[-1,]
-  
-# parse into informative columns and extract dryland wheat in KS
-uniqueSpread <- uniques %>%
-  mutate(irr = str_sub(rasterCode, start = -1, end = -1),
-         cdl = str_sub(rasterCode, start = -4, end = -2),
-         nldas = str_sub(rasterCode, start = -8, end = -5),
-         mukey = str_sub(rasterCode, start = -15, end = -9),
-         state = str_sub(rasterCode, start = -17, end = -16))
-unique(uniqueSpread$irr)
-unique(uniqueSpread$cdl)
-unique(uniqueSpread$state)
-uniqueSpread %>% filter(irr == 2)
-```
+The new processing form has 24,212 unique combinations across all years.
 
 ## Unique rotational trajectories
 SALUS runs continuously, so I actually need unique combinations of soil-climate-crop sequences for the duration of the experiment.
 
 Just how many is that? Let's find out.
+
+### Within LEMA
+First let's see how many there are within LEMA.
 
 ```{r unique2}
 # load
