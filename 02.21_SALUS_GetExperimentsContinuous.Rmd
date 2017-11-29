@@ -72,14 +72,40 @@ lemaVectorOut <- data.frame(lemaCells = lemaVector)
 
 There are a total of 283620 grid cells in the Sheridan 6 Lema.
 
-```{r unique2, eval=FALSE}
-# load
-rootDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus'
-comboDir <- 'combinationGrids'
+## Get SALUS Experiments for LEMA
+Find unique combinations of soil type, climate grid, and crop+irrigation rotation sequence within LEMA
+
+```{r unique2}
+# reload lema key
+lemaKey <- read.csv(paste0(filterDir,'/gmd4p_template_Sheridan_cellKey.csv'))
+
+# load 'annualCombos' data frame
+comboDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids'
 comboDynamicName <- '_gmd4p_combos_top6.RData'
 comboMasterFile <- 'gmd4p_combos_top6_master.RData'
-load(file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
+load(file = paste0(comboDir, '/', comboMasterFile))
+
+# keep only the LEMA cells
+lemaCombo <- lemaKey %>%
+  rename(gridcell = lemaCells) %>%
+  filter(!is.na(gridcell)) %>%
+  left_join(annualCombos)
+
+# remove rows with any NA's (for example, urban, roads, or other crop classes)
+lemaCombo2 <- lemaCombo[complete.cases(lemaCombo),]
+nrow(lemaCombo2) # there are 241606 "active" cells in Sheridan6
+
+# concatentate all annual columns to get one massive management string
+lema_raw <- tidyr::unite(lemaCombo2, 'rawRotations', -gridcell, remove=TRUE)
+
+# unique rotations
+lemaUnique <- unique(lema_raw$rawRotations)
+length(lemaUnique) # 59346 unique rotation sequences
 ```
+
+That produces 59,346 unique experiments for the LEMA region.
+
+
 
 gmd4.ll <- readOGR(paste0(gisDir,'/KS_GMD4.kml'), verbose=FALSE)
 counties <- readOGR(gisDir, 'Counties_RRCAextent_Clip', verbose = FALSE)
