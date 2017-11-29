@@ -75,8 +75,9 @@ There are a total of 283620 grid cells in the Sheridan 6 Lema.
 ## Get SALUS Experiments for LEMA
 Find unique combinations of soil type, climate grid, and crop+irrigation rotation sequence within LEMA
 
-```{r unique2}
+```{r unique2, eval=FALSE}
 # reload lema key
+filterDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids/spatialFilters'
 lemaKey <- read.csv(paste0(filterDir,'/gmd4p_template_Sheridan_cellKey.csv'))
 
 # load 'annualCombos' data frame
@@ -101,13 +102,105 @@ lema_raw <- tidyr::unite(lemaCombo2, 'rawRotations', -gridcell, remove=TRUE)
 # unique rotations
 lemaUnique <- unique(lema_raw$rawRotations)
 length(lemaUnique) # 59346 unique rotation sequences
+
+# write out unique
+save(lemaUnique, file = paste0(filterDir,'/uniqueExperiments_gmd4p_Sheridan6.RData'))
 ```
 
 That produces 59,346 unique experiments for the LEMA region.
 
 
+# Within 2 Counties surrounding LEMA
+Apply to two counties around LEMA to see how many experiments that would be
+
+## Make the grid cell key
+Get raster template grid cell ids for LEMA in order to select cells from the master data files
+
+```{r countiesKey}
+# gmd4+ raster grid (based on CDL clipped to study region boundary)
+aeaProj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
+template <- raster(nrow = 4359, ncol = 7108, crs = aeaProj,
+                    xmn = -522870, xmx = -309630, ymn = 1777860, 
+                    ymx = 1908630) 
+template[] <- 1:ncell(template)
+
+# load boundary
+gisDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries'
+boundaries0 <- readOGR(gisDir, 'Counties_RRCAextent_Clip', verbose = FALSE)
+
+# subset for lema counties
+boundaries <- boundaries0[boundaries0$NAME %in% c('Sheridan','Thomas'),]
+plot(boundaries)
+
+# reproject
+boundaries.aea <- spTransform(boundaries, CRS(aeaProj))
+
+# rasterize the lema boundary using template
+boundRas <- rasterize(boundaries.aea, template, field = 'COUNTYFP', background=NA)
+
+# demonstrate
+plot(template, col=colorRampPalette(c('black','blue'))(9))
+plot(boundRas, add=TRUE)
+
+# use the county raster to mask the template
+countyGridCells <- mask(template, boundRas)
+plot(countyGridCells)
+
+# export as raster and as vector (single column df)
+filterDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids/spatialFilters'
+# writeRaster(countyGridCells, paste0(filterDir,'/gmd4p_template_2counties_sheridanThomas.tif'))
+
+boundVector <- getValues(countyGridCells)
+length(boundVector)
+sum(!is.na(boundVector))
+
+boundVectorOut <- data.frame(county2Cells = boundVector)
+# write.csv(boundVectorOut, row.names = FALSE,
+#           file = paste0(filterDir,'/gmd4p_template_2counties_cellKey.csv'))
+```
+
+There are a total of 5672072 grid cells in the 2 counties overlapping LEMA (Sheridan and Thomas counties)
+
+## Get SALUS Experiments for 2 counties
+Find unique combinations of soil type, climate grid, and crop+irrigation rotation sequence within Sheridan and Thomas counties
+
+```{r unique2counties, eval=FALSE}
+# reload county key
+filterDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids/spatialFilters'
+gridKey <- read.csv(paste0(filterDir,'/gmd4p_template_2counties_cellKey.csv'))
+
+# load 'annualCombos' data frame
+comboDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids'
+comboDynamicName <- '_gmd4p_combos_top6.RData'
+comboMasterFile <- 'gmd4p_combos_top6_master.RData'
+load(file = paste0(comboDir, '/', comboMasterFile))
+
+# keep only the LEMA cells
+boundCombo <- gridKey %>%
+  rename(gridcell = county2Cells) %>%
+  filter(!is.na(gridcell)) %>%
+  left_join(annualCombos)
+
+# remove rows with any NA's (for example, urban, roads, or other crop classes)
+boundCombo2 <- boundCombo[complete.cases(boundCombo),]
+nrow(boundCombo2) # there are 4865838 "active" cells in Sheridan and Thomas counties
+
+# concatentate all annual columns to get one massive management string
+bound_raw <- tidyr::unite(boundCombo2, 'rawRotations', -gridcell, remove=TRUE)
+
+# unique rotations
+boundUnique <- unique(bound_raw$rawRotations)
+length(boundUnique) # 59346 unique rotation sequences
+
+# write out unique
+save(boundUnique, file = paste0(filterDir,'/uniqueExperiments_gmd4p_2counties.RData'))
+```
+
+That produces 815,251 unique experiments for the Sheridan/Thomas regions.
+
+
 
 gmd4.ll <- readOGR(paste0(gisDir,'/KS_GMD4.kml'), verbose=FALSE)
-counties <- readOGR(gisDir, 'Counties_RRCAextent_Clip', verbose = FALSE)
+
 
 
