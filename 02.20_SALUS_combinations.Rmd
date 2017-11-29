@@ -56,7 +56,7 @@ boundName <- 'GMD4_plus_aea'
 # static grid export names
 comboDir <- 'combinationGrids'
 comboStaticName <- 'StaticVars_gmd4p_aea30.tif'
-comboDynamicName <- '_gmd4p_combos_top6_aea30.tif'
+comboDynamicName <- '_gmd4p_combos_top6.RData'
 comboMasterFile <- 'gmd4p_combos_top6_master.RData'
 allUnique <- 'allUnique_gmd4p_top6_2006-2016.csv'
 annualUnique <- 'annualUnique_gmd4p_top6_2006-2016.RData'
@@ -165,21 +165,30 @@ comboStaticName <- 'StaticVars_gmd4p_aea30.tif'
 # Dynamic SALUS Combo Maps.
 Irrigation status and Crop type change annually. Combine annual CDL/irrigation status with the static soil/weather raster.
 
+Update 11/28/17 - dramatic change to work in vector string space right of the bat. Numberic addition of very large numbers and conversion to matrix to vector was causing problems.
+
 
 ```{r combos, eval=FALSE}
+options(scipen=999) # turn off scientific notation
 # load static variable base raster
 static <- raster(paste(rootDir, comboDir, comboStaticName, sep='/'))
 
-# value check - all static cells end in 0000
-staticVector <- as.vector(t(as.matrix(static)))
-stv <- staticVector[!is.na(staticVector)]
-stv4 <- str_sub(stv, start = -4, end = -1)
-unique(stv4)
+# convert to vector, then to padded string
+staticV <- getValues(static)
+staticV.ch <- str_pad(staticV, 17, pad = '0')
+
+# # value check - all static cells end in 0000
+# stv.nona <- staticV.ch[!is.na(staticV.ch)]
+# stv4 <- str_sub(stv.nona, start = -4, end = -1)
+# unique(stv4)
 
 # output df for combos
-annualCombos <- setNames(data.frame(matrix(ncol = length(yearsWanted), 
+annualCombos0 <- setNames(data.frame(matrix(ncol = length(yearsWanted), 
                                            nrow=ncell(static))),
                          c(paste0('x',yearsWanted)))
+# add a cell grid number
+annualCombos <- cbind(data.frame(gridcell = 1:ncell(static)),
+                      annualCombos0)
 
 for(year in yearsWanted){
   # cdl and irrigation annual files
@@ -192,8 +201,7 @@ for(year in yearsWanted){
   
   # fix the cdl mask exported from GEE (mask 0 values)
   cdl[cdl < 1] <- NA 
-  dataType(cdl) <- 'INT2U'
-  
+
   # combine with irrigation and eliminate impossibilities
   cdlpad <- cdl*10
   cdlIrr <- cdlpad + irrigation
@@ -201,44 +209,29 @@ for(year in yearsWanted){
   # reset any irrigated grassland to dryland
   cdlIrr[cdlIrr == 1761] <- 1760
   
-  # # how much irrigated grassland? for 2016, 0.016%
-  # impossible <- freq(cdlIrr, value = 1761)
-  # naCells <- freq(cdlIrr, value = NA)
-  # percentImpossible <- impossible/(ncell(cdlIrr)-naCells)
+  # transform to a character vector, padded to 4 digits
+  cdlIrrV <- getValues(cdlIrr)
+  cdlIrrV.ch <- str_pad(cdlIrrV, 4, pad = '0')
   
-  # combo raster and export
-  staticMask <- mask(static, cdlIrr)
-  combo <- staticMask + cdlIrr
+  # combine with static string and reset NA's
+  combostring <- paste0(staticV.ch,cdlIrrV.ch)
+  combostring[str_detect(combostring, 'NA')] <- NA
   
-  # value check - all static cells end in 0000
-  staticVector <- as.vector(t(as.matrix(staticMask)))
-  stv <- staticVector[!is.na(staticVector)]
-  stv4 <- str_sub(stv, start = -4, end = -1)
-  unique(stv4)
-
-  # value check - did weird irrigation values get introduced here?
-  comboVector <- as.vector(t(as.matrix(combo)))
-  ctv <- comboVector[!is.na(comboVector)]
-  ctv4 <- str_sub(ctv, start = -4, end = -1)
-  unique(ctv4) # 1,4,5,24,61,176 are valid cdl croptypes
+  # # value check - did weird irrigation values get introduced here? NO!
+  # combo4 <- str_sub(combostring, start = -4, end = -1)
+  # unique(ctv4) # 1,4,5,24,61,176 are valid cdl croptypes
   
-  combotest <- getValues(combo)
-  ct.nona <- combotest[!is.na(combotest)]
-  ct.ch <- as.character(ct.nona)
-  ctch4base <- substr(ct.ch, start=14, 17)
+  # export single year files
+  colname <- paste0('x',year)
+  outdata <- structure(data.frame(combostring),names=paste0('x',year))
+  save(outdata, file=paste0(rootDir, '/', comboDir, '/', year, comboDynamicName))
   
-  ct4 <- str_sub(ct.nona, start = -4, end = -1)
-  ctch4 <- str_sub(ct.ch, start = -4, end = -1)
-    
-  writeRaster(combo, paste0(rootDir, '/', comboDir, '/', year, comboDynamicName))
-  
-  # turn to vector, by row
-  colNam <- paste0('x',year)
-  annualCombos[,colNam] <- as.vector(t(as.matrix(combo)))
+  # add to master file
+  annualCombos[,colname] <- combostring
 }
 
 # save combo master
-#save(annualCombos, file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
+save(annualCombos, file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
 ```
 
 # Get Unique Experiments
