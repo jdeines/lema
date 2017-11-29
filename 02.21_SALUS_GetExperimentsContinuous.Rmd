@@ -1,0 +1,87 @@
+---
+title: "Unique Combination Trajectories"
+author: "Jill Deines"
+date: "November 28, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: Create SALUS experiment combinations THROUGH TIME: unique soil-climate-crop-irrigation combos
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.21_salus_expts/',
+                      cache = TRUE, cache.path='cache/02.21_salus_expts/')
+```
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+library(rgdal)
+library(raster)
+library(tidyverse)
+library(stringr)
+```
+
+# Within LEMA
+Prototype methods on a subset of raster cells, prioritizing LEMA
+
+## Make a LEMA grid cell key
+Get raster template grid cell ids for LEMA in order to select cells from the master data files
+
+```{r lemaKey}
+# gmd4+ raster grid (based on CDL clipped to study region boundary)
+aeaProj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
+template <- raster(nrow = 4359, ncol = 7108, crs = aeaProj,
+                    xmn = -522870, xmx = -309630, ymn = 1777860, 
+                    ymx = 1908630) 
+template[] <- 1:ncell(template)
+
+# load lema
+gisDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries'
+lema <- readOGR(gisDir, 'Sheridan6_fromKGS_sd6', verbose = FALSE)
+
+# reproject
+lema.aea <- spTransform(lema, CRS(aeaProj))
+lema.aea$lema <- 1
+
+# rasterize the lema boundary using template
+lemaRas <- rasterize(lema.aea, template, field = 'lema', background=NA)
+
+# demonstrate
+plot(template, col=colorRampPalette(c('black','blue'))(9))
+plot(lemaRas, add=TRUE)
+
+# use the lema raster to mask the template
+lemaGridCells <- mask(template, lemaRas)
+plot(lemaGridCells)
+
+# export as raster and as vector (single column df)
+filterDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids/spatialFilters'
+# writeRaster(lemaGridCells, paste0(filterDir,'/gmd4p_template_Sheridan6Only.tif'))
+
+lemaVector <- getValues(lemaGridCells)
+length(lemaVector)
+sum(!is.na(lemaVector))
+
+lemaVectorOut <- data.frame(lemaCells = lemaVector)
+# write.csv(lemaVectorOut, row.names = FALSE,
+#           file = paste0(filterDir,'/gmd4p_template_Sheridan_cellKey.csv'))
+```
+
+There are a total of 283620 grid cells in the Sheridan 6 Lema.
+
+```{r unique2, eval=FALSE}
+# load
+rootDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus'
+comboDir <- 'combinationGrids'
+comboDynamicName <- '_gmd4p_combos_top6.RData'
+comboMasterFile <- 'gmd4p_combos_top6_master.RData'
+load(file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
+```
+
+gmd4.ll <- readOGR(paste0(gisDir,'/KS_GMD4.kml'), verbose=FALSE)
+counties <- readOGR(gisDir, 'Counties_RRCAextent_Clip', verbose = FALSE)
+
+
