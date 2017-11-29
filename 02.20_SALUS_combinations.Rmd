@@ -7,7 +7,7 @@ output:
     toc: yes
 ---
 
-Goal: Create SALUS experiment combinations: unique soil-climate-crop-irrigation combos
+Goal: Create SALUS gridcell combinations: soil-climate-crop-irrigation combos. Output is a RData dataframe with gridcell ID, and columns x2006:2008 of combinations.
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.20_salus_combos/',
@@ -259,16 +259,4 @@ save(uniques, file = paste0(rootDir, '/', comboDir, '/', annualUnique))
 
 The new processing form has 24,212 unique combinations across all years.
 
-## Unique rotational trajectories
-SALUS runs continuously, so I actually need unique combinations of soil-climate-crop sequences for the duration of the experiment.
-
-Just how many is that? Let's find out.
-
-### Within LEMA
-First let's see how many there are within LEMA.
-
-```{r unique2}
-# load
-load(file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
-```
 
