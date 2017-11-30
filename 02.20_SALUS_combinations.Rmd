@@ -9,6 +9,8 @@ output:
 
 Goal: Create SALUS gridcell combinations: soil-climate-crop-irrigation combos. Output is a RData dataframe with gridcell ID, and columns x2006:2008 of combinations.
 
+NOTE: 11/29/2017 - the last chunk, 'unique', no longer seems to have enough memory to run, but it's no longer needed (finds unique experiment rotations in the full GMD4 buffer, but on an annual basis, not continuous.)
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.20_salus_combos/',
                       cache = TRUE, cache.path='cache/02.20_salus_combos/')
