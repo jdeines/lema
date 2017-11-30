@@ -165,7 +165,9 @@ comboStaticName <- 'StaticVars_gmd4p_aea30.tif'
 # Dynamic SALUS Combo Maps.
 Irrigation status and Crop type change annually. Combine annual CDL/irrigation status with the static soil/weather raster.
 
-Update 11/28/17 - dramatic change to work in vector string space right of the bat. Numberic addition of very large numbers and conversion to matrix to vector was causing problems.
+Update 11/28/17 - dramatic change to work in vector string space right of the bat. Numeric addition of very large numbers and conversion to matrix to vector was causing problems.
+
+In making the static grid, I had added 4 trailing zeros as placeholders in order to add the cdl-irrigation numbers to the final 4 digits. I also chop that off here.
 
 
 ```{r combos, eval=FALSE}
@@ -175,12 +177,10 @@ static <- raster(paste(rootDir, comboDir, comboStaticName, sep='/'))
 
 # convert to vector, then to padded string
 staticV <- getValues(static)
-staticV.ch <- str_pad(staticV, 17, pad = '0')
+staticV.ch0 <- str_pad(staticV, 17, pad = '0')
 
-# # value check - all static cells end in 0000
-# stv.nona <- staticV.ch[!is.na(staticV.ch)]
-# stv4 <- str_sub(stv.nona, start = -4, end = -1)
-# unique(stv4)
+# remove the 4 trailing zeros no longer needed
+staticV.ch <- str_sub(staticV.ch0, start = 1, end = -5)
 
 # output df for combos
 annualCombos0 <- setNames(data.frame(matrix(ncol = length(yearsWanted), 

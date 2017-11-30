@@ -26,11 +26,12 @@ library(viridis)
 ```
 
 **Directories**
+Not all of them are here. It's a fast messy world.
 
 ```{r dirs}
 rootDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus'
 expSubDir <- '/experiments/LEMA_historical_autoIrrigation_v01'
-expFileSuffix <- '_LEMA_hist_auto.xdb.xml'
+expFileSuffix <- '_LEMA_historic_auto.xdb.xml'
 ```
 
 ## Extract some management info
@@ -90,16 +91,34 @@ cropManagement <- rbind(cropManagement00, grassFallow) %>%
 ```
 
 
-## Extract real world wheat scenarios
+## Extract Lema scenarios
 Load the unique experiments  
 
 ```{r getCombos}
-# load 'lemaUnique' from 2.21
+# load 'lemaExps' from 2.21
 comboDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids/spatialFilters'
 load(file = paste0(comboDir,'/uniqueExperiments_gmd4p_Sheridan6.RData'))
 
+# how to break down into xml files? by NLDAS or NLDAS + soil?
+lemaExps <- lemaExps %>% 
+  mutate(nldas = str_sub(ExpCode, start = 1, end = 4),
+         static = str_sub(ExpCode, start = 1, end = 4))
 
-  
+
+# Experiment Table
+exp_master <- bestSoil %>%
+  mutate(soilId = paste0('KS',mukey)) %>%
+  select(c(nldas, soilId)) %>%
+  mutate(soilfp = 'KS.sdb.xml',
+         weatherfp = paste0(nldas,'.wdb.xml'),
+         ExpID = 1:nrow(bestSoil),
+         runTitle = paste0('Wheat-',soilId,'-',nldas),
+         startYear = 2005,
+         Nyrs = 11,
+         startDOY = 265,
+         cropfp = 'cropsn29Dec2016.cdb.xml')
+
+
 # parse into informative columns and extract dryland wheat in KS
 uniqueSpread <- uniques %>%
   mutate(irr = str_sub(rasterCode, start = -1, end = -1),
@@ -109,35 +128,7 @@ uniqueSpread <- uniques %>%
          state = str_sub(rasterCode, start = -17, end = -16)) %>%
   filter(cdl == '024' & irr == '0' & state == '20')
 
-# keep only NLDAS grids within LEMA ------------------------------------------
-# load nldas
-weatherDir <- 'weather/nldas_Jill/nldas_centroidExtract'
-weatherPolyName <- 'NLDAS_clipped_gmd4p.shp'
-nldasPolys <- read_sf(paste(rootDir, weatherDir, weatherPolyName, sep = '/'))
-# load lema
-lema <- read_sf('C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries/Sheridan6_trace.shp') %>% st_transform(4326)
-# get nldas cells
-lemaNldas <- st_intersection(nldasPolys,lema)
-lemagrids <- as.character(lemaNldas$gridCll)
 
-uniqueLema <- uniqueSpread %>%
-  filter(nldas %in% lemagrids)
-
-# that gives 96 combinations. 
-# actually, I just identified the largest soil polygon within LEMA in ArcGIS: 
-# biggest: 2759231
-# next biggest: 1150000
-
-bestSoil <- uniqueLema %>% filter(mukey %in% c('2759231','1150000'))
-bestSoil
-```
-
-Run these 11 experiments!
-
-## Generate Experiment file for these dominant soils in LEMA
-Run all 11 experiments to also see how my `write_xdb_*` functions scale when in use for actual scenarios
-
-```{r lemaWheat, eval=FALSE}
 # table of annual specifications: median planting and harvest dates, fertililzation,
 # and other component parameters
 annualSpecs <- wheatDates %>%
