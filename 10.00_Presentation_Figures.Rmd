@@ -2,29 +2,61 @@
 title: "Presentation Figures"
 author: "Jill Deines"
 date: "November 30, 2017"
-output: html_document
+output: 
+  html_document:
+    toc: yes
 ---
 
+Goal: make figures for AGU 2017 presentation
+
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/10.00_PresFigs/',
+                      cache = TRUE, cache.path='cache/10.00_PresFigs/')
 ```
 
-## R Markdown
+**R Packages Needed**
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+```{r packages, warning=FALSE, message=FALSE}
+library(raster)
 
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+library(grid)
+library(colorRamps)
+library(fields)
+library(RColorBrewer)
+#library(latticeExtra)
+library(viridis)
+#library(rasterVis)
 ```
 
-## Including Plots
+# Background Figures
 
-You can also embed plots, for example:
+## HPA Depletion
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r hpa_depletion}
+rasDir <- 'S:/Users/deinesji/HPA/gis/WaterTableHaacker/ChangeFrom1935_'
+wlchange <- raster(paste0(rasDir,'/WLchange_2016_clip2.tif'))
+
+spplot(wlchange, col.regions=colorRamp()
+
+       
+# without borders
+spplot(freq2, col.regions = c(backgroundcolor,matlab), maxpixels = 2000000,
+       sp.layout=list(scale, text1, text2), #, arrow), 
+       par.settings=list(axis.line=list(col=NA)), 
+       #scales = list(draw=T),
+       colorkey=F)#list(labels=list(cex=1.2),
+                  #at = c(0:18))
+
+
+
+
+#levelplot(freq2, col.regions=c(backgroundcolor,matlab), axes=F)
+
+# color ramp
+image.plot(z=0:18,add=F,legend.only=T,  col=c(backgroundcolor,matlab), 
+           horizontal = T,
+          smallplot=c(0.05,.95,.15,.2), 
+         axis.args=list(at=c(0,3,6,9,12,15,18), 
+                          labels=as.character(c(0,3,6,9,12,15,18))))
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
