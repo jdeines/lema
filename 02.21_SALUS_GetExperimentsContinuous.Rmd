@@ -9,6 +9,8 @@ output:
 
 Goal: Create SALUS experiment combinations THROUGH TIME: unique soil-climate-crop-irrigation combos
 
+Note 11/29/2017 - The county combinations need to be re-done to include grid cell id keys and Experiment ID's still
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.21_salus_expts/',
