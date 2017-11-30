@@ -103,8 +103,22 @@ lema_raw <- tidyr::unite(lemaCombo2, 'rawRotations', -gridcell, remove=TRUE)
 lemaUnique <- unique(lema_raw$rawRotations)
 length(lemaUnique) # 59346 unique rotation sequences
 
-# write out unique
-save(lemaUnique, file = paste0(filterDir,'/uniqueExperiments_gmd4p_Sheridan6.RData'))
+# assign ExpIDs to unique combinations
+ExpIDs <- paste0('L-',1:length(lemaUnique))
+lemaExps <- data.frame(ExpID = ExpIDs,
+                       ExpCode = lemaUnique)
+
+# and make the ExpID to gridcell link
+gridExps <- lemaExps %>%
+  left_join(lema_raw, by = c('ExpCode' = 'rawRotations')) %>%
+  select(c(gridcell,ExpID))
+
+# write out Key
+write.csv(gridExps, row.names=FALSE,
+          file = paste0(filterDir, '/uniqueExperiments_gmd4p_Sheridan6_gridcellKey.csv'))
+# save key and unique combinations as RData
+save(lemaExps,gridExps, 
+     file = paste0(filterDir,'/uniqueExperiments_gmd4p_Sheridan6.RData'))
 ```
 
 That produces 59,346 unique experiments for the LEMA region.
