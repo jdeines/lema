@@ -54,6 +54,11 @@ From Lydia and Brian:
 ```{r getManagement}
 startYear <- 2006
 endYear <- 2016
+Nyrs <- 11
+startDOY <- 265
+runTitle <- 'Lema_historic_01'
+# adjust start year for winter wheat planting
+wheatStart <- startYear -1
 
 # load date file
 managementDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/management'
@@ -94,39 +99,36 @@ cropManagement <- rbind(cropManagement00, grassFallow) %>%
 ## Extract Lema scenarios
 Load the unique experiments  
 
+### Test: develop for small subset
+
 ```{r getCombos}
 # load 'lemaExps' from 2.21
 comboDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids/spatialFilters'
 load(file = paste0(comboDir,'/uniqueExperiments_gmd4p_Sheridan6.RData'))
 
 # how to break down into xml files? by NLDAS or NLDAS + soil?
-lemaExps <- lemaExps %>% 
-  mutate(nldas = str_sub(ExpCode, start = 1, end = 4),
-         static = str_sub(ExpCode, start = 1, end = 4))
+lemaExps2 <- lemaExps %>% 
+  mutate(nldas = str_sub(ExpCode, start = 10, end = 13),
+         state = str_sub(ExpCode, start = 1, end = 3),
+         mukey = str_sub(ExpCode, start = 3, end = 9),
+         static = str_sub(ExpCode, start = 1, end = 13)) 
+
+# get a small subset of Experiments
+expt_set <- lemaExps2 %>% filter(static == '2011499941122')
+
+# translate variables in parameters needed to specify experiment tag
+exp_master <- salustools::makeExperimentTable(runTitle, expt_set$ExpID, expt_set$mukey,
+                                              expt_set$nldas, wheatStart, Nyrs, startDOY)
 
 
-# Experiment Table
-exp_master <- bestSoil %>%
-  mutate(soilId = paste0('KS',mukey)) %>%
-  select(c(nldas, soilId)) %>%
-  mutate(soilfp = 'KS.sdb.xml',
-         weatherfp = paste0(nldas,'.wdb.xml'),
-         ExpID = 1:nrow(bestSoil),
-         runTitle = paste0('Wheat-',soilId,'-',nldas),
-         startYear = 2005,
-         Nyrs = 11,
-         startDOY = 265,
-         cropfp = 'cropsn29Dec2016.cdb.xml')
+## break point: next task: translate crop sequence into rotational info
+# basically: extract a year and crop column, then merge with management table
+# but make this for every experiment looped through
 
-
-# parse into informative columns and extract dryland wheat in KS
-uniqueSpread <- uniques %>%
-  mutate(irr = str_sub(rasterCode, start = -1, end = -1),
-         cdl = str_sub(rasterCode, start = -4, end = -2),
-         nldas = str_sub(rasterCode, start = -8, end = -5),
-         mukey = str_sub(rasterCode, start = -15, end = -9),
-         state = str_sub(rasterCode, start = -17, end = -16)) %>%
-  filter(cdl == '024' & irr == '0' & state == '20')
+# and will need to add functions:
+# autoharvest
+# auto irrigation
+# otehr crops?
 
 
 # table of annual specifications: median planting and harvest dates, fertililzation,
@@ -147,18 +149,7 @@ annualSpecs <- wheatDates %>%
          cultivar = 'P25R40') %>%
   filter(year <= 2016)
 
-# Experiment Table
-exp_master <- bestSoil %>%
-  mutate(soilId = paste0('KS',mukey)) %>%
-  select(c(nldas, soilId)) %>%
-  mutate(soilfp = 'KS.sdb.xml',
-         weatherfp = paste0(nldas,'.wdb.xml'),
-         ExpID = 1:nrow(bestSoil),
-         runTitle = paste0('Wheat-',soilId,'-',nldas),
-         startYear = 2005,
-         Nyrs = 11,
-         startDOY = 265,
-         cropfp = 'cropsn29Dec2016.cdb.xml')
+
 
 
 outFile2 <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/SALUS/testGUIrun/lemaWheatContinuous/lema_wheat_continuous.xdb.xml'
@@ -204,52 +195,4 @@ Hey, that worked like a charm, first go!
 ## Examine results
 Specifically interested in the soil water to determine good start dates for annual reinitialization
 
-### Soil water
-Salus automatically chops subsurface into 20 layers denoted here: http://salusmodel.glg.msu.edu/tools/layers.html. Note the sw variable units is soil water content, m^3 / m^3
 
-Here, I get the weighted average for the top 1.25 meter (first 9 layers) using:
-
-* SW_tot = SW_lay * thick_lay/sum(thick_lay)
-
-```{r salusOutput}
-# load DAILY output
-resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/SALUS/testGUIrun/lemaWheatContinuous/results'
-daily <- read_csv(paste0(resultsDir, '/salus.day.csv')) %>%
-  select(c('Title','Year','DOY','PREC','SW(1)','SW(2)','SW(3)','SW(4)','SW(5)',
-           'SW(6)','SW(7)','SW(8)','SW(9)'))
-
-# set layer thicknesses, in meters
-layerKey <- data.frame(layerNum = as.character(c(1:9)),
-                       layerThick = c(2,5,8,11,14,17,20,23,25)/100)
-sumThick <- sum(layerKey$layerThick)
-
-# longify data, extract layer number as a column, join with layer thickness
-sw_long <- daily %>% gather(key = swLayer, value = swContent.m3.m3, `SW(1)`:`SW(9)`) %>%
-  mutate(layerNum = str_sub(swLayer, start = -2, end = -2)) %>%
-  left_join(layerKey)
-
-# get the weighted average for each DOY
-sw_total <- sw_long %>%
-  mutate(swTot_lay = swContent.m3.m3 * (layerThick / sumThick)) %>%
-  group_by(Title, Year, DOY) %>%
-  summarise(SWTot = sum(swTot_lay))
-```
-
-#### Plot: soil water
-
-```{r plotSW_all}
-ggplot(sw_total, aes(x = DOY, y = SWTot, color = as.factor(Year))) +
-  geom_line() +
-  scale_color_viridis(direction = -1, discrete=TRUE) +
-  facet_wrap(~Title)
-
-# just one Experiment
-one <- sw_total %>% filter(Title == 'Wheat-KS2759231-1124')
-ggplot(one, 
-       aes(x = DOY, y = SWTot, color = as.factor(Year))) +
-  geom_line() +
-  scale_color_viridis(direction = -1, discrete=TRUE) +
-  ggtitle('Surface water content by Year, dryland wheat')
-```
-
-Well, that's enough of an answer - soil water is highly variable among years, I should shoot for continuous.
