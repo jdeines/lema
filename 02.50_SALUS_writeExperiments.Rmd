@@ -7,11 +7,8 @@ output:
     toc: yes
 ---
 
-Goal: Make Experiment Files; here, a continuous run of wheat
+Goal: Make Experiment Files; here, a continuous run of wheat. Also makes a test batch and shell file for the HPCC (.bat and .sh), and briefly looks at soil water content among years to inform annual vs continuous decision.
 
-Functions to package up:
-
-* write experiment file!
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.50_salus_expt/',
@@ -261,6 +258,41 @@ write_xdb_bottomMatter(outFile2, writeVersion = 'Y', closeXDB = 'Y')
 ```
 
 Hey, that worked like a charm, first go!
+
+## Write HPCC batch Files
+This is done as a post hoc test on making functions to write the .bat and .sh files needed for HPCC runs. The results in the section below are from running the .xdb manually in the SALUS GUI.
+
+### HPC shell script
+only one sh file here, for one experiment
+
+```{r hpccSh}
+shDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/SALUS/testHPCCrun'
+hpcHomeDir <- '/mnt/home/deinesji/Example_SALUS_wheat/'
+hpcOutDir <- '/mnt/home/deinesji/Example_SALUS_wheat/results/'
+xdb <- 'lema_wheat_continuous'
+sdb <- "KS"
+wdbZip <- 'testHPCCrun.tar.gz'
+DayVars <- 'ExpID,Title,SpeciesID,GWAD,IRRC,CWAD,DRNC,PREC,LAI'
+SeaVars <- 'ExpID,Title,SpeciesID,GWAD,IRRC,CWAD,DRNC,PREC'
+walltime <- '01:00:00'
+memory <- '2000mb'
+
+salustools::write_HPC_shell(shDir, hpcHomeDir, hpcOutDir, xdb, sdb, wdbZip, DayVars,
+                 SeaVars, walltime, memory)
+```
+
+### HPC bash bat script
+a bit redundant since only 1 sh file, but sends the sh file to queue
+
+```{r hpccbat}
+shNames <- 'lema_wheat_continuous.sh'
+fileOut <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/SALUS/testHPCCrun/lematest.bat'
+
+# write out .bat file
+write_HPC_bat(shNames, fileOut)
+```
+
+
 
 ## Examine results
 Specifically interested in the soil water to determine good start dates for annual reinitialization
