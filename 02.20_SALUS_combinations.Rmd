@@ -209,7 +209,9 @@ for(year in yearsWanted){
   cdlIrr <- cdlpad + irrigation
   
   # reset any irrigated grassland to dryland
+  # reset any irrigated fallow to dryland
   cdlIrr[cdlIrr == 1761] <- 1760
+  cdlIrr[cdlIrr == 611] <- 610
   
   # transform to a character vector, padded to 4 digits
   cdlIrrV <- getValues(cdlIrr)
@@ -221,7 +223,7 @@ for(year in yearsWanted){
   
   # # value check - did weird irrigation values get introduced here? NO!
   # combo4 <- str_sub(combostring, start = -4, end = -1)
-  # unique(ctv4) # 1,4,5,24,61,176 are valid cdl croptypes
+  # unique(combo4) # 1,4,5,24,61,176 are valid cdl croptypes
   
   # export single year files
   colname <- paste0('x',year)
@@ -238,6 +240,9 @@ save(annualCombos, file = paste0(rootDir, '/', comboDir, '/', comboMasterFile))
 
 # Get Unique Experiments
 Get unique combinations. My first idea was to get unique combinations in all years, and run SALUS annually. It turns out the variability in soil water content makes this idea not great. 
+
+update 12/1/2017: no longer relevant (not doing annual runs) and has not been run
+with combinatoins that conver irrigated grassland and fallow to dryland
 
 ```{r unique, eval=FALSE}
 # load
