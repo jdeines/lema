@@ -7,7 +7,15 @@ output:
     toc: yes
 ---
 
-Goal: Make Experiment Files; here, for LEMA, historical, auto irrigation. Strategy: make 1 file for each NLDAS grid, containing all experiments. Or maybe for each NLDAS/soil combo.
+Goal: Make Experiment Files; here, for LEMA, historical, auto irrigation. 
+
+This makes
+
+* 1 experiment .xdb.xml file for every 1000 experiments (so for LEMA historic, 60 xdbs)
+* the HPCC shell script (.sh)
+* the HPCC batch script (.bat)
+
+Most functions for this are sourced from the `salustools` package
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.52_salus_expt_lema/',
@@ -173,7 +181,9 @@ lemaExps3 <- lemaExps2 %>%
 
 ```{r writeExpts}
 # output directory
-testOutDir <- 'C:/Users/deinesji/Documents/Rprojects/lema_SALUS_experiment_files/lema_historic_v1'
+OutDir <- 'C:/Users/deinesji/Documents/Rprojects/lema_SALUS_experiment_files/lema_historic_v1'
+
+#OutDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/LEMA_historical_autoIrrigation_v01/xdbs'
 
 # write an experiment file for each xdb group
 for(g in 1:ngroup){
@@ -189,7 +199,7 @@ for(g in 1:ngroup){
   # Write the file! --------------------------------------------------------------
   
   
-  outFile2 <- paste0(testOutDir,'/',expt_set$xdbCode[1], '.xdb.xml')
+  outFile2 <- paste0(xbdOutDir,'/',expt_set$xdbCode[1], '.xdb.xml')
   
   # initialize the file
   write_xdb_topMatter(outFile2)
@@ -287,9 +297,42 @@ for(g in 1:ngroup){
   # close out
   write_xdb_bottomMatter(outFile2, writeVersion = 'Y', closeXDB = 'Y')
 }
-
 ```
 
 
+## Make the HPCC scripts
 
+### Shell script
+only one sh file here, for one experiment
 
+```{r hpccSh}
+shDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/LEMA_historical_autoIrrigation_v01'
+
+hpcHomeDir <- '/mnt/home/deinesji/salus/LEMA_historical_autoIrrigation_v01/'
+hpcOutDir <- '/mnt/home/deinesji/salus/LEMA_historical_autoIrrigation_v01/results/'
+
+sdb <- "KS"
+wdbZip <- 'nldas_wdb_xmls_gmd4p_cleaned.tar.gz'
+
+xdb <- 'X_1'
+
+DayVars <- 'ExpID,Title,SpeciesID,GWAD,IRRC,DRNC,PREC,LAI'
+SeaVars <- 'ExpID,Title,SpeciesID,GWAD,IRRC,DRNC,PREC'
+
+walltime <- '01:00:00'
+memory <- '2000mb'
+
+salustools::write_HPC_shell(shDir, hpcHomeDir, hpcOutDir, xdb, sdb, wdbZip, DayVars,
+                 SeaVars, walltime, memory)
+```
+
+### HPC bash bat script
+ends the sh files to queue
+
+```{r hpccbat}
+shNames <- paste0(xdb,'.sh')
+fileOut <- paste0(shDir, '/LEMA_hist_auto_v01.bat')
+
+# write out .bat file
+write_HPC_bat(shNames, fileOut)
+```
