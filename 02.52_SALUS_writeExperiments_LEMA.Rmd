@@ -102,7 +102,7 @@ cropParamKey <- data.frame(crop = c('CORN','SOYBEANS','WHEAT','SORGHUM','GRASS',
                            CropMod = c('C','S','C','S','S','S'),
                            SpeciesID = c('MZ','SB','WH','SG','PA','PA'),
                            cultivar = c('MZH','','IB1015','','',''),
-                           Ppop_rain = c('4', '39.54', '494.21', '8.6', '50', '5'),
+                           Ppop_rain = c('3.2', '39.54', '494.21', '8.6', '50', '5'),
                            Ppop_irr = c('7.5', '39.54', '494.21', '8.6', '50', '5'),
                            RowSpc = c('76', '54', '19.05','50.8', '20', '50'),
                            tillage = c('R','R','N','N','N','N'),
@@ -150,10 +150,6 @@ Load the unique experiments
 ### Test: develop for small subset
 Note teh ExpID's are linked back to the grid cells by the gridExps object also loaded with uniqueExperiments_gmd4p_Sheridan6.RData
 
-ADD TILLAGE  
-ADD IRRIGATION
-
-
 ```{r getCombos}
 # load 'lemaExps' from 2.21
 comboDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids/spatialFilters'
@@ -172,6 +168,9 @@ expt_set <- lemaExps2 %>%
   filter(static == '2011499941122') %>%
   mutate(xdbCode = paste0('LX_','1'))
 
+# a test with irrigation
+expt_set <- lemaExps2[13:15,]
+expt_set$xdbCode <- 'LX_1'
 
 # translate variables in parameters needed to specify experiment tag
 exp_master <- salustools::makeExperimentTable(runTitle, expt_set$ExpID,
@@ -206,8 +205,14 @@ for(i in 1:nrow(exp_master)){
     # only write a rotation component if it's not fallow
     #if (annualSpecs$crop[m] != 'FALLOW'){
       # set irrigation flags
-      if (annualSpecs$irrStatus[m] == 1) irrig <- 'F'; ppopCol <- 'Ppop_irr'
-      if (annualSpecs$irrStatus[m] == 0) irrig <- 'N'; ppopCol <- 'Ppop_rain'
+      if (annualSpecs$irrStatus[m] == 1) {
+        irrig <- 'A'
+        ppopCol <- 'Ppop_irr'
+      }  
+      if (annualSpecs$irrStatus[m] == 0){
+        irrig <- 'N'
+        ppopCol <- 'Ppop_rain'
+      } 
       
       if (annualSpecs$numFertEvents[m] > 0) fert <- 'R'
       if (annualSpecs$numFertEvents[m] == 0) fert <- 'N'
@@ -251,6 +256,12 @@ for(i in 1:nrow(exp_master)){
       if(annualSpecs$tillage[m] == 'R'){
         write_xdb_mTillage(outFile2, annualSpecs$harvYear[m], adjPlantDOY)
       }
+      
+      # management: irrigation
+      if(irrig == 'A'){
+        write_xdb_mIrrigate_Auto(outFile2)
+      }
+      
       # management: harvest
       if(annualSpecs$harvestFlag[m] == 'M'){
         write_xdb_mHarvest_maturity(outFile2, closeComponent = 'Y')
@@ -270,9 +281,6 @@ write_xdb_bottomMatter(outFile2, writeVersion = 'Y', closeXDB = 'Y')
 
 ```
 
-Hey, that worked like a charm, first go!
-
-## Examine results
-Specifically interested in the soil water to determine good start dates for annual reinitialization
+Well, that seems to be working.
 
 
