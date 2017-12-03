@@ -185,6 +185,8 @@ OutDir <- 'C:/Users/deinesji/Documents/Rprojects/lema_SALUS_experiment_files/lem
 
 #OutDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/LEMA_historical_autoIrrigation_v01/xdbs'
 
+sleepDuration <- 0.01
+
 # write an experiment file for each xdb group
 for(g in 1:ngroup){
   
@@ -199,10 +201,11 @@ for(g in 1:ngroup){
   # Write the file! --------------------------------------------------------------
   
   
-  outFile2 <- paste0(xbdOutDir,'/',expt_set$xdbCode[1], '.xdb.xml')
+  outFile2 <- paste0(OutDir,'/',expt_set$xdbCode[1], '.xdb.xml')
   
   # initialize the file
   write_xdb_topMatter(outFile2)
+  Sys.sleep(sleepDuration)
   
   # for each experiment:
   for(i in 1:nrow(exp_master)){  
@@ -211,6 +214,7 @@ for(g in 1:ngroup){
                          exp_master$startYear[i], exp_master$Nyrs[i], exp_master$startDOY[i], 
                          exp_master$nldas[i], exp_master$weatherfp[i], exp_master$soilId[i], 
                          exp_master$soilfp[i], exp_master$cropfp[i])
+    Sys.sleep(sleepDuration)
     
     # parse experiment rotations
     rotations <- salustools::parseRotationStrings(as.character(exp_master$ExpCode[i]),
@@ -220,82 +224,87 @@ for(g in 1:ngroup){
     
     # write rotation and management parameters for each year
     for(m in 1:nrow(annualSpecs)){
-      # only write a rotation component if it's not fallow
-      #if (annualSpecs$crop[m] != 'FALLOW'){
-        # set irrigation flags
-        if (annualSpecs$irrStatus[m] == 1) {
-          irrig <- 'A'
-          ppopCol <- 'Ppop_irr'
-        }  
-        if (annualSpecs$irrStatus[m] == 0){
-          irrig <- 'N'
-          ppopCol <- 'Ppop_rain'
-        } 
-        
-        if (annualSpecs$numFertEvents[m] > 0) fert <- 'R'
-        if (annualSpecs$numFertEvents[m] == 0) fert <- 'N'
-        
-     
-        # rotation parameters
-        write_xdb_rotation(outFile2, m, annualSpecs$crop[m], irrig, fert, 
-                           annualSpecs$tillage[m], annualSpecs$harvestFlag[m])
-        # management: planting
-        
-        ## adjust KS state median for nw region
-        adjPlantDOY <- annualSpecs$plantingDOY_50[m] + annualSpecs$plantDOY_adj[m]
-        
-        write_xdb_mPlanting(outFile2, annualSpecs$CropMod[m], annualSpecs$SpeciesID[m], 
-                            annualSpecs$cultivar[m], annualSpecs$plantYear[m], 
-                            adjPlantDOY, annualSpecs[m,ppopCol],
-                            annualSpecs[m,'RowSpc'])
-        
-        # management: fertilize
-        if(fert == 'R'){
-          # figure out how many events
-          for(p in 1:annualSpecs[m,'numFertEvents']){
-            # set first fert date based on planting
-            fert1Day <- adjPlantDOY
-            # but not for wheat
-            if(annualSpecs$crop[m] == 'WHEAT') fert1Day <- 75
-            
-            if(p==1){
-              write_xdb_mFertilize(outFile2, annualSpecs$harvYear[m], fert1Day,
-                                   annualSpecs$ANFer1[m])
-            }
-            if(p==2){
-              fert2DOY <- adjPlantDOY + 30
-              write_xdb_mFertilize(outFile2, annualSpecs$harvYear[m], fert2DOY,
-                                   annualSpecs$ANFer2[m])
-            }
+      # set irrigation flags
+      if (annualSpecs$irrStatus[m] == 1) {
+        irrig <- 'A'
+        ppopCol <- 'Ppop_irr'
+      }  
+      if (annualSpecs$irrStatus[m] == 0){
+        irrig <- 'N'
+        ppopCol <- 'Ppop_rain'
+      } 
+      
+      if (annualSpecs$numFertEvents[m] > 0) fert <- 'R'
+      if (annualSpecs$numFertEvents[m] == 0) fert <- 'N'
+      
+   
+      # rotation parameters
+      write_xdb_rotation(outFile2, m, annualSpecs$crop[m], irrig, fert, 
+                         annualSpecs$tillage[m], annualSpecs$harvestFlag[m])
+      Sys.sleep(sleepDuration)
+      
+      # management: planting
+      
+      ## adjust KS state median for nw region
+      adjPlantDOY <- annualSpecs$plantingDOY_50[m] + annualSpecs$plantDOY_adj[m]
+      
+      write_xdb_mPlanting(outFile2, annualSpecs$CropMod[m], annualSpecs$SpeciesID[m], 
+                          annualSpecs$cultivar[m], annualSpecs$plantYear[m], 
+                          adjPlantDOY, annualSpecs[m,ppopCol],
+                          annualSpecs[m,'RowSpc'])
+      Sys.sleep(sleepDuration)
+      # management: fertilize
+      if(fert == 'R'){
+        # figure out how many events
+        for(p in 1:annualSpecs[m,'numFertEvents']){
+          # set first fert date based on planting
+          fert1Day <- adjPlantDOY
+          # but not for wheat
+          if(annualSpecs$crop[m] == 'WHEAT') fert1Day <- 75
+          
+          if(p==1){
+            write_xdb_mFertilize(outFile2, annualSpecs$harvYear[m], fert1Day,
+                                 annualSpecs$ANFer1[m])
+          }
+          if(p==2){
+            fert2DOY <- adjPlantDOY + 30
+            write_xdb_mFertilize(outFile2, annualSpecs$harvYear[m], fert2DOY,
+                                 annualSpecs$ANFer2[m])
           }
         }
-        
-        # management: tillage
-        if(annualSpecs$tillage[m] == 'R'){
-          write_xdb_mTillage(outFile2, annualSpecs$harvYear[m], adjPlantDOY)
-        }
-        
-        # management: irrigation
-        if(irrig == 'A'){
-          write_xdb_mIrrigate_Auto(outFile2)
-        }
-        
-        # management: harvest
-        if(annualSpecs$harvestFlag[m] == 'M'){
-          write_xdb_mHarvest_maturity(outFile2, closeComponent = 'Y')
-        }  
-        if(annualSpecs$harvestFlag[m] == 'R'){
-          write_xdb_mHarvest_reported(outFile2, annualSpecs$harvYear[m], 
-                        annualSpecs$harvestedDOY_50[m], closeComponent = 'Y')
-        }
-     # }  
+      }
+      Sys.sleep(sleepDuration)
+      
+      # management: tillage
+      if(annualSpecs$tillage[m] == 'R'){
+        write_xdb_mTillage(outFile2, annualSpecs$harvYear[m], adjPlantDOY)
+      }
+      Sys.sleep(sleepDuration)
+      
+      # management: irrigation
+      if(irrig == 'A'){
+        write_xdb_mIrrigate_Auto(outFile2)
+      }
+      Sys.sleep(sleepDuration)
+      
+      # management: harvest
+      if(annualSpecs$harvestFlag[m] == 'M'){
+        write_xdb_mHarvest_maturity(outFile2, closeComponent = 'Y')
+      }  
+      if(annualSpecs$harvestFlag[m] == 'R'){
+        write_xdb_mHarvest_reported(outFile2, annualSpecs$harvYear[m], 
+                      annualSpecs$harvestedDOY_50[m], closeComponent = 'Y')
+      }
+      Sys.sleep(sleepDuration)
     }  
     
     # close rotations and experiment
     write_xdb_bottomMatter(outFile2, closeRotation = 'Y', closeExperiment = 'Y')
+    Sys.sleep(sleepDuration)
   }  
   # close out
   write_xdb_bottomMatter(outFile2, writeVersion = 'Y', closeXDB = 'Y')
+  Sys.sleep(sleepDuration)
 }
 ```
 
