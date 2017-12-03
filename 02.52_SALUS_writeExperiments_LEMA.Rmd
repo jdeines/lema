@@ -49,7 +49,7 @@ From Lydia and Brian:
 * grassland - a few grasses or generic pasture. 
   * grass-weeds, speciesID ='GW' - possible complex?
   * generic-pasture: 'PA' - definitely a simple. still needs to be planted and harvested since salus doesn't do perennials. using doy 90 and 325
-* fallow: just set the planting date for the next crop and let bare soil run. There does also seem to be a Fallow option (speciesID 'FA')
+* fallow: just set the planting date for the next crop and let bare soil run. There does also seem to be a Fallow option (speciesID 'FA'). Not sure the best way to make fallow work. I'm going to plant a really sparse pasture.
 
 **Planting Density**  
 corn, soy, and wheat planting density taken from Brian and Lydia's scripts.
@@ -100,11 +100,11 @@ dates <- read.csv(paste0(managementDir,'/NASS_dates_planting_maturity_harvest_KS
 cropParamKey <- data.frame(crop = c('CORN','SOYBEANS','WHEAT','SORGHUM','GRASS',
                                     'FALLOW'),
                            CropMod = c('C','S','C','S','S','S'),
-                           SpeciesID = c('MZ','SB','WH','SG','PA','FA'),
+                           SpeciesID = c('MZ','SB','WH','SG','PA','PA'),
                            cultivar = c('MZH','','IB1015','','',''),
-                           Ppop_rain = c('4', '39.54', '494.21', '8.6', '50', ''),
-                           Ppop_irr = c('7.5', '39.54', '494.21', '8.6', '50', ''),
-                           RowSpc = c('76', '54', '19.05','50.8', '20', ''),
+                           Ppop_rain = c('4', '39.54', '494.21', '8.6', '50', '5'),
+                           Ppop_irr = c('7.5', '39.54', '494.21', '8.6', '50', '5'),
+                           RowSpc = c('76', '54', '19.05','50.8', '20', '50'),
                            tillage = c('R','R','N','N','N','N'),
                            # GMD4 is in zone 1, adjust state planting dates?
                            plantDOY_adj = c(5,-5,-10,-5, 0, 0),
@@ -113,7 +113,7 @@ cropParamKey <- data.frame(crop = c('CORN','SOYBEANS','WHEAT','SORGHUM','GRASS',
                            ANFer1=c(rep(70,6)),
                            ANFer2=c(rep(70,6)),
                            # use median harvest date or auto harvest?
-                           harvestFlag = c('M','M','M','M','R','M'))
+                           harvestFlag = c('M','M','M','M','R','R'))
 
 #  to add rows for GRASS and FALLOW
 grassFallow <- data.frame(year = rep(startYear:endYear,2),
@@ -172,6 +172,7 @@ expt_set <- lemaExps2 %>%
   filter(static == '2011499941122') %>%
   mutate(xdbCode = paste0('LX_','1'))
 
+
 # translate variables in parameters needed to specify experiment tag
 exp_master <- salustools::makeExperimentTable(runTitle, expt_set$ExpID,
                     expt_set$mukey, expt_set$nldas, expt_set$ExpCode,
@@ -202,56 +203,63 @@ for(i in 1:nrow(exp_master)){
   
   # write rotation and management parameters for each year
   for(m in 1:nrow(annualSpecs)){
-    # set irrigation flags
-    if (annualSpecs$irrStatus[m] == 1) irrig <- 'F'; ppopCol <- 'Ppop_irr'
-    if (annualSpecs$irrStatus[m] == 0) irrig <- 'N'; ppopCol <- 'Ppop_rain'
-    
-    if (annualSpecs$numFertEvents[m] > 0) fert <- 'R'
-    if (annualSpecs$numFertEvents[m] == 0) fert <- 'N'
-    
- 
-    # rotation parameters
-    write_xdb_rotation(outFile2, m, annualSpecs$crop[m], irrig, fert, 
-                       annualSpecs$tillage[m], annualSpecs$harvestFlag[m])
-    # management: planting
-    
-    ## adjust KS state median for nw region
-    adjPlantDOY <- annualSpecs$plantingDOY_50[m] + annualSpecs$plantDOY_adj[m]
-    
-    write_xdb_mPlanting(outFile2, annualSpecs$CropMod[m], annualSpecs$SpeciesID[m], 
-                        annualSpecs$cultivar[m], annualSpecs$plantYear[m], 
-                        adjPlantDOY, annualSpecs[m,ppopCol],
-                        annualSpecs[m,'RowSpc'])
-    
-    # management: fertilize
-    if(fert == 'R'){
-      # figure out how many events
-      for(p in 1:annualSpecs[m,'numFertEvents']){
-        # set first fert date based on planting
-        fert1Day <- adjPlantDOY
-        # but not for wheat
-        if(annualSpecs$crop[m] == 'WHEAT') fert1Day <- 75
-        
-        if(p==1){
-          write_xdb_mFertilize(outFile2, annualSpecs$harvYear[m], fert1Day,
-                               annualSpecs$ANFer1[m])
-        }
-        if(p==2){
-          fert2DOY <- adjPlantDOY + 30
-          write_xdb_mFertilize(outFile2, annualSpecs$harvYear[m], fert2DOY,
-                               annualSpecs$ANFer2[m])
+    # only write a rotation component if it's not fallow
+    #if (annualSpecs$crop[m] != 'FALLOW'){
+      # set irrigation flags
+      if (annualSpecs$irrStatus[m] == 1) irrig <- 'F'; ppopCol <- 'Ppop_irr'
+      if (annualSpecs$irrStatus[m] == 0) irrig <- 'N'; ppopCol <- 'Ppop_rain'
+      
+      if (annualSpecs$numFertEvents[m] > 0) fert <- 'R'
+      if (annualSpecs$numFertEvents[m] == 0) fert <- 'N'
+      
+   
+      # rotation parameters
+      write_xdb_rotation(outFile2, m, annualSpecs$crop[m], irrig, fert, 
+                         annualSpecs$tillage[m], annualSpecs$harvestFlag[m])
+      # management: planting
+      
+      ## adjust KS state median for nw region
+      adjPlantDOY <- annualSpecs$plantingDOY_50[m] + annualSpecs$plantDOY_adj[m]
+      
+      write_xdb_mPlanting(outFile2, annualSpecs$CropMod[m], annualSpecs$SpeciesID[m], 
+                          annualSpecs$cultivar[m], annualSpecs$plantYear[m], 
+                          adjPlantDOY, annualSpecs[m,ppopCol],
+                          annualSpecs[m,'RowSpc'])
+      
+      # management: fertilize
+      if(fert == 'R'){
+        # figure out how many events
+        for(p in 1:annualSpecs[m,'numFertEvents']){
+          # set first fert date based on planting
+          fert1Day <- adjPlantDOY
+          # but not for wheat
+          if(annualSpecs$crop[m] == 'WHEAT') fert1Day <- 75
+          
+          if(p==1){
+            write_xdb_mFertilize(outFile2, annualSpecs$harvYear[m], fert1Day,
+                                 annualSpecs$ANFer1[m])
+          }
+          if(p==2){
+            fert2DOY <- adjPlantDOY + 30
+            write_xdb_mFertilize(outFile2, annualSpecs$harvYear[m], fert2DOY,
+                                 annualSpecs$ANFer2[m])
+          }
         }
       }
-    }
-     
-    # management: harvest
-    if(annualSpecs$harvestFlag[m] == 'M'){
-      write_xdb_mHarvest_maturity(outFile2, closeComponent = 'Y')
-    }  
-    if(annualSpecs$harvestFlag[m] == 'R'){
-      write_xdb_mHarvest_reported(outFile2, annualSpecs$harvYear[m], 
-                    annualSpecs$harvestedDOY_50[m], closeComponent = 'Y')
-    }
+      
+      # management: tillage
+      if(annualSpecs$tillage[m] == 'R'){
+        write_xdb_mTillage(outFile2, annualSpecs$harvYear[m], adjPlantDOY)
+      }
+      # management: harvest
+      if(annualSpecs$harvestFlag[m] == 'M'){
+        write_xdb_mHarvest_maturity(outFile2, closeComponent = 'Y')
+      }  
+      if(annualSpecs$harvestFlag[m] == 'R'){
+        write_xdb_mHarvest_reported(outFile2, annualSpecs$harvYear[m], 
+                      annualSpecs$harvestedDOY_50[m], closeComponent = 'Y')
+      }
+   # }  
   }  
   
   # close rotations and experiment
