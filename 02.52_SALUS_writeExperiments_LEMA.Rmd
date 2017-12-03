@@ -48,8 +48,40 @@ From Lydia and Brian:
 * sorghum: simple model (no cultivars) - 'SG'
 * grassland - a few grasses or generic pasture. 
   * grass-weeds, speciesID ='GW' - possible complex?
-  * generic-pasture: 'PA' - definitely a simple
+  * generic-pasture: 'PA' - definitely a simple. still needs to be planted and harvested since salus doesn't do perennials. using doy 90 and 325
 * fallow: just set the planting date for the next crop and let bare soil run. There does also seem to be a Fallow option (speciesID 'FA')
+
+**Planting Density**  
+corn, soy, and wheat planting density taken from Brian and Lydia's scripts.
+
+from https://www.bookstore.ksre.ksu.edu/pubs/l818.pdf - KS planting guide
+
+**sorghum:** dependent on rainfail   
+
+* density: 35,000/acre = 8.64 per m2 (would be lower for western gmd4)
+* 65% field emergence
+* row spacing: 10 - 30 inches, varying inches between seeds (20 in - 50.8 cm)
+* planting for zone 1: may 15-june 10
+
+**soybean:**  
+
+* row width: state data says 19.2 - 23.5 (lets go with 54 cm)
+* pdf says ... just going with what Brian has used
+* 80% emergence
+
+**corn:** different by irrigation systems, more sparse in western kansas (zone1)  
+
+* northwest dryland: 13,000 - 18,000 plants per acre (3.2-4.44 per m2)
+* irrigated: 24,000-34,000 (5.9 - 8.4)
+
+**wheat**: nothing helpful  
+
+
+* from NASS, KS statewide corn row spacing is about 30 in (76.2 cm)
+* from NASS, KS soybeans are 19.2-23.5 inches (lets go with  54 cm)
+
+
+Currently, emergence = planting, as in other salus examples
 
 ```{r getManagement}
 startYear <- 2006
@@ -69,17 +101,24 @@ cropParamKey <- data.frame(crop = c('CORN','SOYBEANS','WHEAT','SORGHUM','GRASS',
                                     'FALLOW'),
                            CropMod = c('C','S','C','S','S','S'),
                            SpeciesID = c('MZ','SB','WH','SG','PA','FA'),
-                           cultivar = c('MZH',NA,'IB1015',NA,NA,NA),
+                           cultivar = c('MZH','','IB1015','','',''),
+                           Ppop_rain = c('4', '39.54', '494.21', '8.6', '', ''),
+                           Ppop_irr = c('7.5', '39.54', '494.21', '8.6', '', ''),
+                           RowSpc = c('76', '54', '19.05','50.8', '', ''),
                            tillage = c('R','R','N','N','N','N'),
-                           numFertEvents = c(2,0,1,0,0,0))
+                           # GMD4 is in zone 1, adjust state planting dates?
+                           plantDOY_adj = c(5,-5,-10,-5, 0, 0),
+                           numFertEvents = c(2,0,1,0,0,0),
+                           # use median harvest date or auto harvest?
+                           harvestFlag = c('M','M','M','M','R','M'))
 
 #  to add rows for GRASS and FALLOW
 grassFallow <- data.frame(year = rep(startYear:endYear,2),
                           crop = c('GRASS','FALLOW'),
-                          plantingDOY_50 = NA,
-                          harvestedDOY_50 = NA,
-                          plantYear = NA,
-                          harvYear = NA)
+                          plantingDOY_50 = 90,
+                          harvestedDOY_50 = 325,
+                          plantYear = rep(startYear:endYear,2),
+                          harvYear = rep(startYear:endYear,2))
 
 # join and keep key fields
 cropManagement00 <- dates %>%
@@ -93,6 +132,12 @@ cropManagement <- rbind(cropManagement00, grassFallow) %>%
   left_join(cropParamKey) %>%
   filter( year <= 2016) %>%
   arrange(year, crop)
+
+#cropManagement %>% group_by(crop) %>% summarize(meanPlant = mean(plantingDOY_50))
+
+cropkey <- data.frame(cropCode = c('001','004','005','024','061','176'),
+                       crop = c('CORN','SORGHUM','SOYBEANS','WHEAT',
+                                    'FALLOW','GRASS'))
 ```
 
 
@@ -100,6 +145,7 @@ cropManagement <- rbind(cropManagement00, grassFallow) %>%
 Load the unique experiments  
 
 ### Test: develop for small subset
+Note teh ExpID's are linked back to the grid cells by the gridExps object also loaded with uniqueExperiments_gmd4p_Sheridan6.RData
 
 ```{r getCombos}
 # load 'lemaExps' from 2.21
@@ -111,25 +157,93 @@ lemaExps2 <- lemaExps %>%
   mutate(nldas = str_sub(ExpCode, start = 10, end = 13),
          state = str_sub(ExpCode, start = 1, end = 3),
          mukey = str_sub(ExpCode, start = 3, end = 9),
-         static = str_sub(ExpCode, start = 1, end = 13)) 
+         static = str_sub(ExpCode, start = 1, end = 13),
+         ExpCode = as.character(ExpCode))
 
 # get a small subset of Experiments
-expt_set <- lemaExps2 %>% filter(static == '2011499941122')
+expt_set <- lemaExps2 %>% 
+  filter(static == '2011499941122') %>%
+  mutate(xdbCode = paste0('LX_','1'))
 
 # translate variables in parameters needed to specify experiment tag
-exp_master <- salustools::makeExperimentTable(runTitle, expt_set$ExpID, expt_set$mukey,
-                                              expt_set$nldas, wheatStart, Nyrs, startDOY)
+exp_master <- salustools::makeExperimentTable(runTitle, expt_set$ExpID,
+                    expt_set$mukey, expt_set$nldas, expt_set$ExpCode,
+                    wheatStart, Nyrs, startDOY)
+
+testOutDir <- 'C:/Users/deinesji/Documents/Rprojects/lema_SALUS_experiment_files/test_lema_realLife'
+# Write the file! --------------------------------------------------------------
 
 
-## break point: next task: translate crop sequence into rotational info
-# basically: extract a year and crop column, then merge with management table
-# but make this for every experiment looped through
+outFile2 <- paste0(testOutDir,'/',expt_set$xdbCode[1], '.xdb.xml')
+
+# initialize the file
+write_xdb_topMatter(outFile2)
+
+# for each experiment:
+for(i in 1:nrow(exp_master)){  
+  # write each set of experiment parameters
+  write_xdb_experiment(outFile2, exp_master$ExpID[i], exp_master$runTitle[i], 
+                       exp_master$startYear[i], exp_master$Nyrs[i], exp_master$startDOY[i], 
+                       exp_master$nldas[i], exp_master$weatherfp[i], exp_master$soilId[i], 
+                       exp_master$soilfp[i], exp_master$cropfp[i])
+  
+  # parse experiment rotations
+  rotations <- salustools::parseRotationStrings(as.character(exp_master$ExpCode[i]),
+                  startyear = exp_master$startYear[i]+1, cropkey)
+  # combine with management table
+  annualSpecs <- rotations %>% left_join(cropManagement)
+  
+  # write rotation and management parameters for each year
+  for(m in 1:nrow(annualSpecs)){
+    # set irrigation flags
+    if (annualSpecs$irrStatus[m] == 1) irrig <- 'F'
+    if (annualSpecs$irrStatus[m] == 0) irrig <- 'N'
+    
+    if (annualSpecs$numFertEvents[m] > 0) fert <- 'R'
+    if (annualSpecs$numFertEvents[m] == 0) fert <- 'N'
+    
+    if (crop == 'WHEAT'){
+      # rotation parameters
+      write_xdb_rotation(outFile2, m, annualSpecs$crop[m], irrig, fert, 
+                         annualSpecs$tillage[m], annualSpecs$harvestFlag[m])
+      # management: planting
+      write_xdb_mPlanting(outFile2, annualSpecs$CropMod[m], annualSpecs$SpeciesID[m], 
+                          annualSpecs$cultivar[m], annualSpecs$plantYear[m], 
+                          annualSpecs$plantingDOY_50[m])
+      # management: fertilize
+      write_xdb_mFertilize(outFile2, annualSpecs$harvYear[m], annualSpecs$fertDOY[m],
+                           annualSpecs$Nfert[m])
+      # management: harvest
+      write_xdb_mHarvest(outFile2, annualSpecs$harvYear[m], annualSpecs$harvestedDOY_50[m], 
+                         closeComponent = 'Y')
+      
+      
+    }
+    # rotation parameters
+    write_xdb_rotation(outFile2, m, annualSpecs$crop[m], irrig, fert, 
+                       annualSpecs$tillage[m], annualSpecs$harvestFlag[m])
+    # management: planting
+    write_xdb_mPlanting(outFile2, annualSpecs$CropMod[m], annualSpecs$SpeciesID[m], 
+                        annualSpecs$cultivar[m], annualSpecs$plantYear[m], 
+                        annualSpecs$plantingDOY_50[m])
+    # management: fertilize
+    write_xdb_mFertilize(outFile2, annualSpecs$harvYear[m], annualSpecs$fertDOY[m],
+                         annualSpecs$Nfert[m])
+    # management: harvest
+    write_xdb_mHarvest(outFile2, annualSpecs$harvYear[m], annualSpecs$harvestedDOY_50[m], 
+                       closeComponent = 'Y')
+  }  
+  # close rotations and experiment
+  write_xdb_bottomMatter(outFile2, closeRotation = 'Y', closeExperiment = 'Y')
+}  
+# close out
+write_xdb_bottomMatter(outFile2, writeVersion = 'Y', closeXDB = 'Y')
+
 
 # and will need to add functions:
 # autoharvest
 # auto irrigation
 # otehr crops?
-
 
 # table of annual specifications: median planting and harvest dates, fertililzation,
 # and other component parameters
