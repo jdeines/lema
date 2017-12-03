@@ -9,6 +9,8 @@ output:
 
 Goal: Make Experiment Files; here, a continuous run of wheat. Also makes a test batch and shell file for the HPCC (.bat and .sh), and briefly looks at soil water content among years to inform annual vs continuous decision.
 
+Note 12/3/17: salustools functions have been updated, this shouldn't work anymore
+
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.50_salus_expt/',
@@ -31,7 +33,7 @@ meh, there directories set all throughout this script
 
 ```{r dirs}
 testDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/SALUS/testGUIrun/continuousWheat'
-testFile <- 'wheat_continuous.xdb.xml'
+testFile <- 'wheat_continuous_newFuns.xdb.xml'
 ```
 
 ## Extract some management info
@@ -115,14 +117,14 @@ write_xdb_experiment(outFile, ExpID, RunTitle, startYear, NYrs, startDOY,
                      WthID, WthFile, SoilID, SoilFile, CropFile)
 # year 1
 write_xdb_rotation(outFile, OrderNum, Title, irrig, fertilize, tillage, harvest)
-write_xdb_mPlanting(outFile, cropModel, species, cultivar, year, PlantDOY)
+write_xdb_mPlanting(outFile, cropModel, species, cultivar, year, PlantDOY, 455,17)
 write_xdb_mFertilize(outFile, year_f, fertDOY, Nfert)
-write_xdb_mHarvest(outFile, year_h, harvestDOY, closeComponent = 'Y')
+write_xdb_mHarvest_reported(outFile, year_h, harvestDOY, closeComponent = 'Y')
 # year 2
 write_xdb_rotation(outFile, OrderNum+1, Title, irrig, fertilize, tillage, harvest)
-write_xdb_mPlanting(outFile, cropModel, species, cultivar, year+1, PlantDOY)
+write_xdb_mPlanting(outFile, cropModel, species, cultivar, year+1, PlantDOY, 455, 17)
 write_xdb_mFertilize(outFile, year_f+1, fertDOY, Nfert)
-write_xdb_mHarvest(outFile, year_h+1, harvestDOY, closeComponent = 'Y')
+write_xdb_mHarvest_reported(outFile, year_h+1, harvestDOY, closeComponent = 'Y')
 # close out
 write_xdb_bottomMatter(outFile, closeComponent = 'N', closeRotation = 'Y', 
                         closeExperiment = 'Y', writeVersion = 'Y', 
