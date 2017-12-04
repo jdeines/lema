@@ -1,0 +1,358 @@
+---
+title: "Generate Salus Experiment Files"
+author: "Jill Deines"
+date: "November 23, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: Make Experiment Files; here, for LEMA, historical, auto irrigation. 
+
+This makes
+
+* 1 experiment .xdb.xml file for every 1000 experiments (so for LEMA historic, 60 xdbs)
+* the HPCC shell script (.sh)
+* the HPCC batch script (.bat)
+
+Most functions for this are sourced from the `salustools` package
+
+output salus files successfully run on the HPC on 12/2/17 to 12/3/17
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.52_salus_expt_lema/',
+                      cache = TRUE, cache.path='cache/02.52_salus_expt_lema/')
+```
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(stringr)
+library(sf)
+#library(devtools)
+#install_github("jdeines/salustools")
+library(salustools) # from Jill's github
+library(lubridate)
+library(viridis)
+```
+
+**Directories**
+Not all of them are here. It's a fast messy world.
+
+```{r dirs}
+1+2
+```
+
+## Extract some management info
+Combine planting dates, spacing information, cultivars, etc
+
+From Lydia and Brian:  
+
+**Cultivars:**
+
+* maize: complex model, cultivar MZH, speciesID 'MZ'
+* wheat: complex model, cultivar IB1015, 'WH'
+  * also a simple winter wheat: 'WW'
+* soybeans: simple model (no cultivars) - species ID = 'SB'
+* sorghum: simple model (no cultivars) - 'SG'
+* grassland - a few grasses or generic pasture. 
+  * grass-weeds, speciesID ='GW' - possible complex?
+  * generic-pasture: 'PA' - definitely a simple. still needs to be planted and harvested since salus doesn't do perennials. using doy 90 and 325
+* fallow: just set the planting date for the next crop and let bare soil run. There does also seem to be a Fallow option (speciesID 'FA'). Not sure the best way to make fallow work. I'm going to plant a really sparse pasture.
+
+**Planting Density**  
+corn, soy, and wheat planting density taken from Brian and Lydia's scripts.
+
+from https://www.bookstore.ksre.ksu.edu/pubs/l818.pdf - KS planting guide
+
+**sorghum:** dependent on rainfail   
+
+* density: 35,000/acre = 8.64 per m2 (would be lower for western gmd4)
+* 65% field emergence
+* row spacing: 10 - 30 inches, varying inches between seeds (20 in - 50.8 cm)
+* planting for zone 1: may 15-june 10
+
+**soybean:**  
+
+* row width: state data says 19.2 - 23.5 (lets go with 54 cm)
+* pdf says ... just going with what Brian has used
+* 80% emergence
+
+**corn:** different by irrigation systems, more sparse in western kansas (zone1)  
+
+* northwest dryland: 13,000 - 18,000 plants per acre (3.2-4.44 per m2)
+* irrigated: 24,000-34,000 (5.9 - 8.4)
+
+**wheat**: nothing helpful  
+
+
+* from NASS, KS statewide corn row spacing is about 30 in (76.2 cm)
+* from NASS, KS soybeans are 19.2-23.5 inches (lets go with  54 cm)
+
+
+Currently, emergence = planting, as in other salus examples
+
+```{r getManagement}
+startYear <- 2006
+endYear <- 2016
+Nyrs <- 11
+startDOY <- 265
+runTitle <- 'Lema_historic_01'
+# adjust start year for winter wheat planting
+wheatStart <- startYear -1
+
+# load date file
+managementDir <- 'S:/Users/deinesji/HPA/Salus/lema/management'
+dates <- read.csv(paste0(managementDir,'/NASS_dates_planting_maturity_harvest_KS_2006-2017_4crops_MEDIANs.csv'))
+
+# crop parameter key
+cropParamKey <- data.frame(crop = c('CORN','SOYBEANS','WHEAT','SORGHUM','GRASS',
+                                    'FALLOW'),
+                           CropMod = c('C','S','C','S','S','S'),
+                           SpeciesID = c('MZ','SB','WH','SG','PA','PA'),
+                           cultivar = c('MZH','','IB1015','','',''),
+                           Ppop_rain = c('3.2', '39.54', '494.21', '8.6', '50', '5'),
+                           Ppop_irr = c('7.5', '39.54', '494.21', '8.6', '50', '5'),
+                           RowSpc = c('76', '54', '19.05','50.8', '20', '50'),
+                           tillage = c('R','R','N','N','N','N'),
+                           # GMD4 is in zone 1, adjust state planting dates?
+                           plantDOY_adj = c(5,-5,-10,-5, 0, 0),
+                           # fertilizer management - right now just always the same
+                           numFertEvents = c(2,0,1,0,0,0),
+                           ANFer1=c(rep(70,6)),
+                           ANFer2=c(rep(70,6)),
+                           # use median harvest date or auto harvest?
+                           harvestFlag = c('M','M','M','M','R','R'))
+
+#  to add rows for GRASS and FALLOW
+grassFallow <- data.frame(year = rep(startYear:endYear,2),
+                          crop = c('GRASS','FALLOW'),
+                          plantingDOY_50 = 90,
+                          harvestedDOY_50 = 325,
+                          plantYear = rep(startYear:endYear,2),
+                          harvYear = rep(startYear:endYear,2))
+
+# join and keep key fields
+cropManagement00 <- dates %>%
+    mutate(plantYear = year(ymd(plantingDate_50)),
+           harvYear = year(ymd(harvestDate_50))) %>%
+  select(c('year','crop','plantingDOY_50','harvestedDOY_50','plantYear',
+           'harvYear')) 
+
+# add fallow and grass
+cropManagement <- rbind(cropManagement00, grassFallow) %>%
+  left_join(cropParamKey) %>%
+  filter( year <= 2016) %>%
+  arrange(year, crop)
+
+#cropManagement %>% group_by(crop) %>% summarize(meanPlant = mean(plantingDOY_50))
+
+cropkey <- data.frame(cropCode = c('001','004','005','024','061','176'),
+                       crop = c('CORN','SORGHUM','SOYBEANS','WHEAT',
+                                    'FALLOW','GRASS'))
+```
+
+
+## Extract Lema scenarios
+Load the unique experiments and split into ~ 60 experiment files of 1000 runs each
+
+Note teh ExpID's are linked back to the grid cells by the gridExps object also loaded with uniqueExperiments_gmd4p_Sheridan6.RData
+
+```{r getCombos}
+# load 'lemaExps' from 2.21
+#comboDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids/spatialFilters'
+
+comboDir <- 'S:/Users/deinesji/HPA/Salus/lema/uniqueExperiments'
+load(file = paste0(comboDir,'/uniqueExperiments_gmd4p_Sheridan6.RData'))
+
+# how to break down into xml files? by NLDAS or NLDAS + soil?
+lemaExps2 <- lemaExps %>% 
+  mutate(nldas = str_sub(ExpCode, start = 10, end = 13),
+         state = str_sub(ExpCode, start = 1, end = 3),
+         mukey = str_sub(ExpCode, start = 3, end = 9),
+         static = str_sub(ExpCode, start = 1, end = 13),
+         ExpCode = as.character(ExpCode))
+
+# make a grouping vector
+ngroup <- 60
+groups <- sort(rep(1:ngroup, 1000))[1:nrow(lemaExps2)]
+
+# Assign into groups of 1000, sequentially
+lemaExps3 <- lemaExps2 %>% 
+  mutate(xdbGroup = groups, xdbCode = paste0('X_',xdbGroup))
+```
+
+## Write the experiment files!
+
+```{r writeExpts}
+# output directory
+OutDir <- 'E:/Jill/salusExperiments/lema_historic_auto_v01'
+
+#OutDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/LEMA_historical_autoIrrigation_v01/xdbs'
+
+sleepDuration <- 0 # not needed on hydrocloud!
+
+# write an experiment file for each xdb group
+for(g in 1:ngroup){
+  
+  expt_set <- lemaExps3 %>% filter(xdbGroup == g)
+  
+  # translate variables in parameters needed to specify experiment tag
+  exp_master <- salustools::makeExperimentTable(runTitle, expt_set$ExpID,
+                      expt_set$mukey, expt_set$nldas, expt_set$ExpCode,
+                      wheatStart, Nyrs, startDOY)
+  
+  
+  # Write the file! --------------------------------------------------------------
+  
+  
+  outFile2 <- paste0(OutDir,'/',expt_set$xdbCode[1], '.xdb.xml')
+  
+  # initialize the file
+  write_xdb_topMatter(outFile2)
+  #Sys.sleep(sleepDuration)
+  
+  # for each experiment:
+  for(i in 1:nrow(exp_master)){  
+    # write each set of experiment parameters
+    write_xdb_experiment(outFile2, exp_master$ExpID[i], exp_master$runTitle[i], 
+                         exp_master$startYear[i], exp_master$Nyrs[i], exp_master$startDOY[i], 
+                         exp_master$nldas[i], exp_master$weatherfp[i], exp_master$soilId[i], 
+                         exp_master$soilfp[i], exp_master$cropfp[i])
+    #Sys.sleep(sleepDuration)
+    
+    # parse experiment rotations
+    rotations <- salustools::parseRotationStrings(as.character(exp_master$ExpCode[i]),
+                    startyear = exp_master$startYear[i]+1, cropkey)
+    # combine with management table
+    annualSpecs <- rotations %>% left_join(cropManagement,by = c("year", "crop"))
+    
+    # write rotation and management parameters for each year
+    for(m in 1:nrow(annualSpecs)){
+      # set irrigation flags
+      if (annualSpecs$irrStatus[m] == 1) {
+        irrig <- 'A'
+        ppopCol <- 'Ppop_irr'
+      }  
+      if (annualSpecs$irrStatus[m] == 0){
+        irrig <- 'N'
+        ppopCol <- 'Ppop_rain'
+      } 
+      
+      if (annualSpecs$numFertEvents[m] > 0) fert <- 'R'
+      if (annualSpecs$numFertEvents[m] == 0) fert <- 'N'
+      
+   
+      # rotation parameters
+      write_xdb_rotation(outFile2, m, annualSpecs$crop[m], irrig, fert, 
+                         annualSpecs$tillage[m], annualSpecs$harvestFlag[m])
+      #Sys.sleep(sleepDuration)
+      
+      # management: planting
+      
+      ## adjust KS state median for nw region
+      adjPlantDOY <- annualSpecs$plantingDOY_50[m] + annualSpecs$plantDOY_adj[m]
+      
+      write_xdb_mPlanting(outFile2, annualSpecs$CropMod[m], annualSpecs$SpeciesID[m], 
+                          annualSpecs$cultivar[m], annualSpecs$plantYear[m], 
+                          adjPlantDOY, annualSpecs[m,ppopCol],
+                          annualSpecs[m,'RowSpc'])
+      #Sys.sleep(sleepDuration)
+      # management: fertilize
+      if(fert == 'R'){
+        # figure out how many events
+        for(p in 1:annualSpecs[m,'numFertEvents']){
+          # set first fert date based on planting
+          fert1Day <- adjPlantDOY
+          # but not for wheat
+          if(annualSpecs$crop[m] == 'WHEAT') fert1Day <- 75
+          
+          if(p==1){
+            write_xdb_mFertilize(outFile2, annualSpecs$harvYear[m], fert1Day,
+                                 annualSpecs$ANFer1[m])
+          }
+          if(p==2){
+            fert2DOY <- adjPlantDOY + 30
+            write_xdb_mFertilize(outFile2, annualSpecs$harvYear[m], fert2DOY,
+                                 annualSpecs$ANFer2[m])
+          }
+        }
+      }
+      #Sys.sleep(sleepDuration)
+      
+      # management: tillage
+      if(annualSpecs$tillage[m] == 'R'){
+        write_xdb_mTillage(outFile2, annualSpecs$harvYear[m], adjPlantDOY)
+      }
+      #Sys.sleep(sleepDuration)
+      
+      # management: irrigation
+      if(irrig == 'A'){
+        write_xdb_mIrrigate_Auto(outFile2)
+      }
+      #Sys.sleep(sleepDuration)
+      
+      # management: harvest
+      if(annualSpecs$harvestFlag[m] == 'M'){
+        write_xdb_mHarvest_maturity(outFile2, closeComponent = 'Y')
+      }  
+      if(annualSpecs$harvestFlag[m] == 'R'){
+        write_xdb_mHarvest_reported(outFile2, annualSpecs$harvYear[m], 
+                      annualSpecs$harvestedDOY_50[m], closeComponent = 'Y')
+      }
+      #Sys.sleep(sleepDuration)
+    }  
+    
+    # close rotations and experiment
+    write_xdb_bottomMatter(outFile2, closeRotation = 'Y', closeExperiment = 'Y')
+    #Sys.sleep(sleepDuration)
+  }  
+  # close out
+  write_xdb_bottomMatter(outFile2, writeVersion = 'Y', closeXDB = 'Y')
+  #Sys.sleep(sleepDuration)
+}
+```
+
+
+## Make the HPCC scripts
+
+### Shell script
+make 1 sh file for each experiment
+
+```{r hpccSh}
+xdbDir <- 'E:/Jill/salusExperiments/lema_historic_auto_v01'
+outDir <- xdbDir
+
+hpcHomeDir <- '/mnt/home/deinesji/salus/LEMA_historical_autoIrrigation_v01/'
+hpcOutDir <- '/mnt/home/deinesji/salus/LEMA_historical_autoIrrigation_v01/results/'
+
+sdb <- "KS"
+wdbZip <- 'nldas_wdb_xmls_gmd4p_cleaned.tar.gz'
+
+# extract xdb name from xmls
+xdb <- sapply(strsplit(list.files(xdbDir, pattern='*.xdb.xml'),'.', fixed=TRUE), head, 1)
+
+DayVars <- 'ExpID,Title,SpeciesID,GWAD,IRRC,DRNC,PREC,LAI'
+SeaVars <- 'ExpID,Title,SpeciesID,GWAD,IRRC,DRNC,PREC'
+
+walltime <- '00:30:00'
+memory <- '2000mb'
+
+# loop over xdbs
+for (i in 1:length(xdb)){
+  salustools::write_HPC_shell(outDir, hpcHomeDir, hpcOutDir, xdb[i], sdb, wdbZip, DayVars,
+                 SeaVars, walltime, memory)
+}  
+```
+
+### HPC bash bat script
+sends the sh files to queue
+
+```{r hpccbat}
+shNames <- paste0(xdb,'.sh')
+fileOut <- paste0(outDir, '/LEMA_hist_auto_v01.bat')
+
+# write out .bat file
+write_HPC_bat(shNames, fileOut)
+```

@@ -1,0 +1,51 @@
+---
+title: "LEMA Historic Auto Analysis"
+author: "Jill Deines"
+date: "December 3, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: Build SALUS results workflow and examine results from first LEMA historical run (LEMA_Historic_Auto_v01)
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.00_salus_results_lema/',
+                      cache = TRUE, cache.path='cache/03.00_salus_results_lema/')
+```
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(stringr)
+#library(devtools)
+#install_github("jdeines/salustools")
+library(salustools) # from Jill's github
+library(lubridate)
+library(viridis)
+```
+
+**Directories**
+
+```{r dirs}
+# raw salus output directory
+scratchDir <- 'F:/Users/deinesji/salusRawResults/lema_historic_auto_v01'
+
+# directory for cleaned/summarized output
+outDir <- 'S:/Users/deinesji/HPA/Salus/lema/results/lema_hist_auto_v01'
+
+# run name
+runname <- 'lema_historic_auto_v01'
+```
+
+# Clean up output
+60,000 runs makes about 16 GB of output data. Clean and summarize to reduce final data.
+
+## Seasonal Yields
+An easy target: seasonal yields! Extract yield for crops run.
+
+```{r}
+
+```
+
