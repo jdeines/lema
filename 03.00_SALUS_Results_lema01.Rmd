@@ -18,12 +18,6 @@ knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.00_salus_results_lema/',
 
 ```{r packages, warning=FALSE, message=FALSE}
 library(tidyverse)
-library(stringr)
-#library(devtools)
-#install_github("jdeines/salustools")
-library(salustools) # from Jill's github
-library(lubridate)
-library(viridis)
 ```
 
 **Directories**
@@ -37,15 +31,148 @@ outDir <- 'S:/Users/deinesji/HPA/Salus/lema/results/lema_hist_auto_v01'
 
 # run name
 runname <- 'lema_historic_auto_v01'
+
+startYear <- 2006 # excluding wheat planting, aka first year of harvest
+endYear <- 2016
 ```
 
-# Clean up output
+# Clean up output: Exploration
 60,000 runs makes about 16 GB of output data. Clean and summarize to reduce final data.
 
 ## Seasonal Yields
 An easy target: seasonal yields! Extract yield for crops run.
 
-```{r}
+```{r yields, eval=FALSE}
+# crop codes desired
+crops <- c('MZ', 'WH','SB','SG')
+
+# list seasonal results files
+seasonFiles <- list.files(scratchDir, pattern = '*seasonal.csv')
+
+# load first set
+sdf <- read_csv(paste0(scratchDir, '/', seasonFiles[1])) %>%
+  filter(SpeciesID %in% crops) %>%
+  select(-c(RID, RcID))
+```
+
+## Inquiry: Is Daily Different?
+I'd like to just use the seasonal data for irrigation and drainage, but I have a hunch it just reports these values on the harvest DOY. Confirm by checking daily
+
+```{r dailycomp, eval=FALSE}
+
+dailyFiles <- list.files(scratchDir, pattern = '*daily.csv')
+
+ddf <- read_csv(paste0(scratchDir, '/', dailyFiles[1])) 
+ # group_by(ExpID, Year, SpeciesID) %>%
+  #summarize()
+  
+# compare values between seasonal and daily
+sdf %>% filter(ExpID == 'L-40' & Year == 2015)
+ddf %>% filter(ExpID == 'L-40' & Year == 2015 & DOY %in% c(1,254,365))  
+```
+
+So the seasonal yield matches, but the seasonal precip (and I assume drainage?) stops at the DOY of harvest. Precipitation and DRNC also seem to be cumulative across the whole run, not just annually, but GWAD is annual
+
+# Clean Output: Mean it!
+From the above test, it seems pointless to use the seasonal file - just summarize and aggregate the daily file to get annual values for all variables.
+
+```{r cleanOUtput, eval=FALSE}
+# get a list of all filenames in the SALUS run (contained in a folder)
+dailyFiles <- list.files(scratchDir, pattern = '*daily.csv')
+
+# load daily files, get annual non-cumulative values, and combine into 1 df
+annualResults <- do.call(rbind, lapply(dailyFiles, function(x){
+  # load file
+  ddf <- read_csv(paste0(scratchDir, '/', x)) 
+  
+  # make an annual crop table - speciesID where GWAD is max
+  cropByYear <- ddf %>%
+    group_by(ExpID,Year) %>%
+    slice(which.max(GWAD)) %>%
+    select(c(ExpID,Year, SpeciesID))
+  
+  # get maximum values per year
+  adf <- ddf %>%
+   group_by(ExpID, Year) %>%
+   summarize(GWAD = max(GWAD, na.rm=TRUE),
+             IRRC_cum = max(IRRC, na.rm=TRUE),
+             DRNC_cum = max(DRNC, na.rm=TRUE),
+             PREC_cum = max(PREC, na.rm = TRUE),
+             LAI = max(LAI, na.rm = TRUE)) %>%
+    # add species name back in 
+    left_join(cropByYear, by = c('ExpID','Year')) %>%
+    # de-cumulate irrc, drnc, prec (turn to annual values)
+    mutate(IRRC_mm = IRRC_cum - lag(IRRC_cum, default=0),
+           DRNC_mm = DRNC_cum - lag(DRNC_cum, default=0),
+           PREC_mm = PREC_cum - lag(PREC_cum, default=0)) %>%
+    select(c(ExpID, Year, SpeciesID, GWAD, IRRC_mm, DRNC_mm, PREC_mm, LAI)) %>%
+    filter(Year >= startYear)
+}))
+
+# write out
+write_csv(annualResults, path = paste0(outDir, '/', runname, '.csv'))
+# save as rdata: use .rds to be able to assign variable name when reloadig with readRDS
+save(annualResults, file = paste0(outDir, '/', runname, '.Rds'))
+```
+
+# Check out preliminary results for v01!
+I already know I should re-run with my startDOY at 1. Take a quick look at the first set of results for any other glaring omissios to fix.
+
+## Yields
+
+```{r checkResults_yield, fig.width = 5, fig.height = 4.25}
+# load formatted results output
+aresults <- read_csv(paste0(outDir, '/', runname, '.csv'))
+
+# add an irrigation variable
+aresults$irrigation <- 'N'
+aresults[aresults$IRRC_mm > 0 ,'irrigation'] <- 'Y'
+
+
+# get yield statistics by year/crop/irrigation status (not spatially weighted)
+# species names
+cropKey <- data.frame(SpeciesID = c('MZ', 'WH','SB','SG'),
+                      crop = c('CORN','WHEAT','SOYBEANS','SORGHUM'))
+
+yieldStats <- aresults %>%
+  filter(SpeciesID %in% cropKey$SpeciesID) %>%
+  group_by(Year, SpeciesID, irrigation) %>%
+  do(data.frame(t(quantile(.$GWAD, probs = c(.1, .25, .5, .75, .9),na.rm=TRUE)))) %>%
+  left_join(cropKey)
+
+# plot
+ggplot(yieldStats, aes(x=Year, y = X50., color = irrigation)) +
+  geom_ribbon(aes(x = Year, ymin = X25., ymax = X75., fill=irrigation), alpha = .4) +
+  geom_line() +
+  facet_wrap(~crop) +
+  ylab('Yield (kg/ha)') + xlab('') + 
+  ggtitle('Median and IQR Yield, Lema Unweighted Experiments') +
+  theme_bw() + theme(legend.position = 'bottom')#, legend.title = element_blank())
+```
+
+Not bad, but why do I have no sorghum?
+
+### Sorghum Check
+I wonder if my choice of model start date is bad for sorghum somehow, since it's harvest date is the latest? examine the daily sequence
+
+```{r sorghumCheck}
+# do any seasonal runs have yield (aka daily processing error)
+seasonFiles <- list.files(scratchDir, pattern = '*seasonal.csv')
+sg_seas <- read_csv(paste0(scratchDir, '/', seasonFiles[1])) %>%
+  filter(SpeciesID == 'SG') %>%
+  select(-c(RID, RcID))
+unique(sg_seas$GWAD) # nope, all 0
+
+# find a daily sorghum run
+sorghum_annual <- aresults %>% filter(SpeciesID == 'SG')
+# 265 has 3 rotations
+
+#seasonal results for l-265
+sg_seas %>% filter(ExpID == 'L-265') # why is the DOY 152?
 
 ```
+
+Note the early harvest DOY!
+
+It's auto-harvesting 2 days after planting! Example, 2014 in L-09 (in the log it's clear)
 
