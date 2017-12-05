@@ -25,7 +25,6 @@ library(tidyverse)
 
 **Directories and User Variables**
 
-
 ```{r dirs}
 # directory for cleaned/summarized to annual values salus output
 resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/LEMA_historical_autoIrrigation_v01/results'
@@ -50,4 +49,34 @@ template <- raster(nrow = 4359, ncol = 7108, crs = aeaProj,
 template[] <- 1:ncell(template)
 ```
 
+# Yield: Maps and Summaries
+
+```{r yieldResults}
+# load formatted results output
+aresults <- read_csv(paste0(resultsDir, '/', runname, '.csv'))
+
+# add an irrigation variable
+aresults$irrigation <- 'N'
+aresults[aresults$IRRC_mm > 0 ,'irrigation'] <- 'Y'
+
+# get yield statistics by year/crop/irrigation status (not spatially weighted)
+# species names
+cropKey <- data.frame(SpeciesID = c('MZ', 'WH','SB','SG'),
+                      crop = c('CORN','WHEAT','SOYBEANS','SORGHUM'))
+
+yieldStats <- aresults %>%
+  filter(SpeciesID %in% cropKey$SpeciesID) %>%
+  group_by(Year, SpeciesID, irrigation) %>%
+  do(data.frame(t(quantile(.$GWAD, probs = c(.1, .25, .5, .75, .9),na.rm=TRUE)))) %>%
+  left_join(cropKey)
+
+# plot
+ggplot(yieldStats, aes(x=Year, y = X50., color = irrigation)) +
+  geom_ribbon(aes(x = Year, ymin = X25., ymax = X75., fill=irrigation), alpha = .4) +
+  geom_line() +
+  facet_wrap(~crop) +
+  ylab('Yield (kg/ha)') + xlab('') + 
+  ggtitle('Median and IQR Yield, Lema Unweighted Experiments') +
+  theme_bw() + theme(legend.position = 'bottom')#, legend.title = element_blank())
+```
 
