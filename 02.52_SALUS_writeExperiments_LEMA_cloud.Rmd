@@ -330,9 +330,10 @@ outDir <- xdbDir
 hpcHomeDir <- '/mnt/home/deinesji/salus/LEMA_historical_autoIrrigation_v02/'
 hpcOutDir <- '/mnt/home/deinesji/salus/LEMA_historical_autoIrrigation_v02/results/'
 
+# be mindful of extensions
 sdb <- "KS"
 wdbZip <- 'nldas_wdb_xmls_gmd4p_cleaned.tar.gz'
-cropfile <- 'cropsn29Dec2016_SGttMatrFixed.cdb.xml'
+cropfile <- 'cropsn29Dec2016_SGttMatrFixed'
 
 # extract xdb name from xmls
 xdb <- sapply(strsplit(list.files(xdbDir, pattern='*.xdb.xml'),'.', fixed=TRUE), head, 1)
