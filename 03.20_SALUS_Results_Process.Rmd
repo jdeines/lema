@@ -1,0 +1,53 @@
+---
+title: "Process Salus Results"
+author: "Jill Deines"
+date: "December 4, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: Build SALUS results workflow to process LEMA output back into a spatial grid
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.20_salus_results_process/',
+                      cache = FALSE, cache.path='cache/03.20_salus_results_lema/')
+```
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+# trying to include package::function but the order of these two packages 
+# will matter if I forget
+library(raster)  
+library(tidyverse)
+```
+
+**Directories and User Variables**
+
+
+```{r dirs}
+# directory for cleaned/summarized to annual values salus output
+resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/LEMA_historical_autoIrrigation_v01/results'
+
+# run name
+runname <- 'lema_historic_auto_v01'
+
+# time frame
+startYear <- 2006 # excluding wheat planting, aka first year of harvest
+endYear <- 2016
+
+# load unique experiments and grid cell to Experiment code key
+#comboDir <- 'S:/Users/deinesji/HPA/Salus/lema/uniqueExperiments'
+comboDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids/spatialFilters'
+load(file = paste0(comboDir,'/uniqueExperiments_gmd4p_Sheridan6.RData'))
+
+# gmd4+ template raster grid (based on CDL clipped to study region boundary)
+aeaProj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
+template <- raster(nrow = 4359, ncol = 7108, crs = aeaProj,
+                    xmn = -522870, xmx = -309630, ymn = 1777860, 
+                    ymx = 1908630) 
+template[] <- 1:ncell(template)
+```
+
+

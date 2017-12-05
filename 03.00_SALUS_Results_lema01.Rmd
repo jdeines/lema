@@ -7,7 +7,9 @@ output:
     toc: yes
 ---
 
-Goal: Build SALUS results workflow and examine results from first LEMA historical run (LEMA_Historic_Auto_v01)
+Goal: Build SALUS results workflow to extract and aggregate desired SALUS results
+
+Also, examine preliminary results from first LEMA historical run (LEMA_Historic_Auto_v01)
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.00_salus_results_lema/',
