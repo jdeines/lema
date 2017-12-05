@@ -318,7 +318,7 @@ ggplot(regional_english, aes(x=year, y = X50., color = type)) +
 
 Overall regional yields by crop type and irrigation status: metric units
 
-```{r regionalYields_metric}
+```{r regionalYields_metric, fig.width = 5, fig.height = 4.25}
 # format data
 regional_metric <- yield.clean %>%
   group_by(year, crop, type) %>%
@@ -401,7 +401,7 @@ write.csv(state.clean, row.names=FALSE,
 
 Overall STATE yields by crop type and irrigation status:
 
-```{r stateYields}
+```{r stateYields, fig.width = 5, fig.height = 4.25}
 # plot
 ggplot(state.clean %>% filter(year < 2017), 
        aes(x=year, y = yield_bu_acre, color = type)) +
