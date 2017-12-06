@@ -9,6 +9,8 @@ output:
 
 Goal: Create SALUS experiment combinations THROUGH TIME: unique soil-climate-crop-irrigation combos
 
+Update 12/6/2017 - Re-run the LEMA to include alfalfa (top7 crops)
+
 Note 11/29/2017 - The county combinations need to be re-done to include grid cell id keys and Experiment ID's still
 
 
@@ -84,8 +86,8 @@ lemaKey <- read.csv(paste0(filterDir,'/gmd4p_template_Sheridan_cellKey.csv'))
 
 # load 'annualCombos' data frame
 comboDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids'
-comboDynamicName <- '_gmd4p_combos_top6.RData'
-comboMasterFile <- 'gmd4p_combos_top6_master.RData'
+comboDynamicName <- '_gmd4p_combos_top7.RData'
+comboMasterFile <- 'gmd4p_combos_top7_master.RData'
 load(file = paste0(comboDir, '/', comboMasterFile))
 
 # keep only the LEMA cells
@@ -94,7 +96,29 @@ lemaCombo <- lemaKey %>%
   filter(!is.na(gridcell)) %>%
   left_join(annualCombos)
 
+# fill in single year missing values with...alfalfa? -------
+# filter out years with more than 1 NA
+lemaCombo$naCount <- apply(lemaCombo, 1, function(x) sum(is.na(x)))
+lemaCombo1 <- lemaCombo[lemaCombo$naCount < 2,] 
+
+# get the weather/soil code for each cell
+lemaCombo1$static <- apply(lemaCombo1, 1, function(x) { 
+  static <- substr(x[9], start = 1, stop = 13)
+  for (m in 1:length(static)){
+    if (is.na(static[m])){
+      static[m] <- substr(x[11], start = 1, stop = 13)
+    }
+  }
+  return(static)
+})
+
+# add alfalfa
+
 # remove rows with any NA's (for example, urban, roads, or other crop classes)
+someNAs <- lemaCombo[!complete.cases(lemaCombo),] 
+someNAs$naCount <- apply(someNAs, 1, function(x) sum(is.na(x)))
+lessNAs <- someNAs %>% filter(naCount < 6)
+
 lemaCombo2 <- lemaCombo[complete.cases(lemaCombo),]
 nrow(lemaCombo2) # there are 241606 "active" cells in Sheridan6
 
@@ -124,6 +148,43 @@ save(lemaExps,gridExps,
 ```
 
 That produces 59,346 unique experiments for the LEMA region.
+
+## Visualize the experiment coverage
+or, what cells have values for the whole study period?
+
+```{r visExptCells}
+# gmd4+ template raster grid (based on CDL clipped to study region boundary)
+aeaProj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
+template <- raster(nrow = 4359, ncol = 7108, crs = aeaProj,
+                    xmn = -522870, xmx = -309630, ymn = 1777860, 
+                    ymx = 1908630) 
+template[] <- 1:ncell(template)
+templateVector <- getValues(template)
+
+# aoi
+gisDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries'
+aoi <- readOGR(gisDir, 'Sheridan6_fromKGS_sd6', verbose = FALSE)
+aoi <- spTransform(aoi, CRS(aeaProj))
+
+# formal aoi cells - use numbers and shorten value column
+cells <- lemaCombo2[,1:2]
+cells$gridcell <- as.numeric(cells$gridcell)
+cells$x2006 <- as.numeric(substr(cells$x2006, start = 1, stop = 3))
+
+# join results to template vector
+template.df <- data.frame(gridcell = templateVector)
+
+cellVectors <-  template.df %>%
+  left_join(cells, by = 'gridcell')
+
+# rasterize data vector
+outRas <- template
+outRas[] <- cellVectors[,'x2006']
+
+outRasClip <- crop(outRas, aoi)
+spplot(outRasClip, add=T, col.regions='blue', maxPixels = 500000,
+       main = 'Active Cells')
+```
 
 
 # Within 2 Counties surrounding LEMA
