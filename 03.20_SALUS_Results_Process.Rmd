@@ -21,16 +21,18 @@ knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.20_salus_results_process/
 # will matter if I forget
 library(raster)  
 library(tidyverse)
+library(rgdal)
 ```
 
 **Directories and User Variables**
 
 ```{r dirs}
 # directory for cleaned/summarized to annual values salus output
-resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/LEMA_historical_autoIrrigation_v01/results'
+resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/LEMA_historical_autoIrrigation_v02/results'
+
 
 # run name
-runname <- 'lema_historic_auto_v01'
+runname <- 'lema_historic_auto_v02'
 
 # time frame
 startYear <- 2006 # excluding wheat planting, aka first year of harvest
@@ -47,36 +49,109 @@ template <- raster(nrow = 4359, ncol = 7108, crs = aeaProj,
                     xmn = -522870, xmx = -309630, ymn = 1777860, 
                     ymx = 1908630) 
 template[] <- 1:ncell(template)
+templateVector <- getValues(template)
+
+# aoi
+gisDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries'
+aoi <- readOGR(gisDir, 'Sheridan6_fromKGS_sd6', verbose = FALSE)
+aoi <- spTransform(aoi, CRS(aeaProj))
 ```
 
-# Yield: Maps and Summaries
+# SALUS Maps and Summaries
 
-```{r yieldResults}
+## Load Data and get Expt Distributions
+Results need to be distributed in space, but first, taken a quick glance at the unweighted results for the experiments run
+
+### YIeld
+
+```{r unweightedYieldResults, fig.width = 5, fig.height = 4.25}
 # load formatted results output
-aresults <- read_csv(paste0(resultsDir, '/', runname, '.csv'))
-
-# add an irrigation variable
-aresults$irrigation <- 'N'
-aresults[aresults$IRRC_mm > 0 ,'irrigation'] <- 'Y'
+expt.annual <- read_csv(paste0(resultsDir, '/', runname, '.csv'))
 
 # get yield statistics by year/crop/irrigation status (not spatially weighted)
 # species names
 cropKey <- data.frame(SpeciesID = c('MZ', 'WH','SB','SG'),
                       crop = c('CORN','WHEAT','SOYBEANS','SORGHUM'))
 
-yieldStats <- aresults %>%
+uYieldStats <- expt.annual %>%
   filter(SpeciesID %in% cropKey$SpeciesID) %>%
   group_by(Year, SpeciesID, irrigation) %>%
   do(data.frame(t(quantile(.$GWAD, probs = c(.1, .25, .5, .75, .9),na.rm=TRUE)))) %>%
   left_join(cropKey)
 
 # plot
-ggplot(yieldStats, aes(x=Year, y = X50., color = irrigation)) +
+ggplot(uYieldStats, aes(x=Year, y = X50., color = irrigation)) +
   geom_ribbon(aes(x = Year, ymin = X25., ymax = X75., fill=irrigation), alpha = .4) +
   geom_line() +
   facet_wrap(~crop) +
   ylab('Yield (kg/ha)') + xlab('') + 
   ggtitle('Median and IQR Yield, Lema Unweighted Experiments') +
   theme_bw() + theme(legend.position = 'bottom')#, legend.title = element_blank())
+```
+
+### Irrigation Water Used
+
+```{r unweightedIrrResults, fig.height = 2.5, fig.width = 4}
+# get summary statistics for all irrigated experiments
+uIrrStats <- expt.annual %>%
+  filter(irrigation == 'Y') %>%
+  group_by(Year) %>%
+  do(data.frame(t(quantile(.$IRRC_mm, probs = c(.1, .25, .5, .75, .9),na.rm=TRUE))))
+
+# plot
+ggplot(uIrrStats, aes(x=Year, y = X50.)) +
+  geom_ribbon(aes(x = Year, ymin = X25., ymax = X75.), alpha = .4) +
+  geom_line() +
+  ylab('Irrigation (mm)') + xlab('') + 
+  ggtitle('Median and IQR Irrigation Applied, Lema Unweighted Experiments') +
+  theme_bw() 
+```
+
+### Precipitation
+
+```{r unweightedPrecip, fig.height = 2.5, fig.width = 4}
+uIPrecipStats <- expt.annual %>%
+  group_by(Year) %>%
+  do(data.frame(t(quantile(.$PREC_mm, probs = c(.1, .25, .5, .75, .9),na.rm=TRUE))))
+
+ggplot(uIPrecipStats, aes(x=Year, y = X50.)) +
+  geom_ribbon(aes(x = Year, ymin = X25., ymax = X75.), alpha = .4) +
+  geom_line() +
+  ylab('Precip (mm)') + xlab('') + 
+  ggtitle('Median and IQR Precip, Lema Unweighted Experiments') +
+  theme_bw() 
+```
+
+
+## Spatially Distribute
+Distribute results based on grid cell ids
+
+```{r spatialize}
+variable <- 'IRRC_mm'
+
+# load formatted results output
+expt.annual <- read_csv(paste0(resultsDir, '/', runname, '.csv'))
+# extract 1 variable and spread to wide
+var.annual <- expt.annual %>%
+  mutate(Year = paste0('x',Year)) %>%
+  rename_('variable' = variable ) %>%
+  dplyr::select(c(ExpID, Year, variable)) %>%
+  spread(key = Year, value = variable)
+
+# add grid cell ids to results
+var.annual2 <- var.annual %>% left_join(gridExps, by = 'ExpID')
+
+# join results to template vector
+template.df <- data.frame(gridcell = templateVector)
+irrVectors <-  template.df %>%
+  left_join(var.annual2, by = 'gridcell')
+
+# rasterize data vector
+outRas <- template
+outRas[] <- irrVectors[,'x2006']
+
+outRasClip <- crop(outRas, aoi)
+spplot(outRasClip, add=T, col.regions=bpy.colors(20), maxPixels = 500000,
+       main = 'Irrigation Applied (mm), 2006')
 ```
 
