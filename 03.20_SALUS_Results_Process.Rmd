@@ -22,6 +22,9 @@ knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.20_salus_results_process/
 library(raster)  
 library(tidyverse)
 library(rgdal)
+#library(devtools)
+#install_github("jdeines/salustools")
+library(salustools)
 ```
 
 **Directories and User Variables**
@@ -29,7 +32,6 @@ library(rgdal)
 ```{r dirs}
 # directory for cleaned/summarized to annual values salus output
 resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/LEMA_historical_autoIrrigation_v02/results'
-
 
 # run name
 runname <- 'lema_historic_auto_v02'
@@ -41,7 +43,7 @@ endYear <- 2016
 # load unique experiments and grid cell to Experiment code key
 #comboDir <- 'S:/Users/deinesji/HPA/Salus/lema/uniqueExperiments'
 comboDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids/spatialFilters'
-load(file = paste0(comboDir,'/uniqueExperiments_gmd4p_Sheridan6.RData'))
+load(file = paste0(comboDir,'/uniqueExperiments_gmd4p_Sheridan6_top6.RData'))
 
 # gmd4+ template raster grid (based on CDL clipped to study region boundary)
 aeaProj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
@@ -70,8 +72,8 @@ expt.annual <- read_csv(paste0(resultsDir, '/', runname, '.csv'))
 
 # get yield statistics by year/crop/irrigation status (not spatially weighted)
 # species names
-cropKey <- data.frame(SpeciesID = c('MZ', 'WH','SB','SG'),
-                      crop = c('CORN','WHEAT','SOYBEANS','SORGHUM'))
+cropKey <- data.frame(SpeciesID = c('MZ', 'WH','SB','SG','AL'),
+                      crop = c('CORN','WHEAT','SOYBEANS','SORGHUM','ALFALFA'))
 
 uYieldStats <- expt.annual %>%
   filter(SpeciesID %in% cropKey$SpeciesID) %>%
@@ -126,32 +128,29 @@ ggplot(uIPrecipStats, aes(x=Year, y = X50.)) +
 ## Spatially Distribute
 Distribute results based on grid cell ids
 
-```{r spatialize}
-variable <- 'IRRC_mm'
+### Irrigation
 
+```{r spatialize}
 # load formatted results output
 expt.annual <- read_csv(paste0(resultsDir, '/', runname, '.csv'))
-# extract 1 variable and spread to wide
-var.annual <- expt.annual %>%
-  mutate(Year = paste0('x',Year)) %>%
-  rename_('variable' = variable ) %>%
-  dplyr::select(c(ExpID, Year, variable)) %>%
-  spread(key = Year, value = variable)
+irrVar <- 'IRRC_mm'
 
-# add grid cell ids to results
-var.annual2 <- var.annual %>% left_join(gridExps, by = 'ExpID')
+# vector of years wanted
+yearsWanted <- startYear:endYear
 
-# join results to template vector
-template.df <- data.frame(gridcell = templateVector)
-irrVectors <-  template.df %>%
-  left_join(var.annual2, by = 'gridcell')
+# irrigation stack
+irrList <- list()
+for(year in yearsWanted){
+  rasName <- as.character(year)
+  irrList[[rasName]] <- salustools::spatialize(expt.annual, irrVar, year, 
+                                        gridExps, template,aoi)
+}  
+irrStack <- stack(irrList, quick = TRUE)
 
-# rasterize data vector
-outRas <- template
-outRas[] <- irrVectors[,'x2006']
+spplot(irrStack, main = runname)
 
-outRasClip <- crop(outRas, aoi)
-spplot(outRasClip, add=T, col.regions=bpy.colors(20), maxPixels = 500000,
-       main = 'Irrigation Applied (mm), 2006')
+# get total irrigation over time
+
+
 ```
 
