@@ -351,8 +351,8 @@ make 1 sh file for each experiment
 xdbDir <- 'E:/Jill/salusExperiments/3_lema_historic_fixed_v01'
 outDir <- xdbDir
 
-hpcHomeDir <- '/mnt/home/deinesji/salus/LEMA_historical_autoIrrigation_v02/'
-hpcOutDir <- '/mnt/home/deinesji/salus/LEMA_historical_autoIrrigation_v02/results/'
+hpcHomeDir <- '/mnt/home/deinesji/salus/3_LEMA_hist_fixed_v01/'
+hpcOutDir <- '/mnt/home/deinesji/salus/3_LEMA_hist_fixed_v01/results/'
 
 # be mindful of extensions
 sdb <- "KS"
@@ -365,7 +365,7 @@ xdb <- sapply(strsplit(list.files(xdbDir, pattern='*.xdb.xml'),'.', fixed=TRUE),
 DayVars <- 'ExpID,Title,SpeciesID,GWAD,IRRC,DRNC,PREC,LAI'
 SeaVars <- 'ExpID,Title,SpeciesID,GWAD'
 
-walltime <- '00:40:00'
+walltime <- '01:00:00'
 memory <- '2000mb'
 
 # loop over xdbs
@@ -380,7 +380,7 @@ sends the sh files to queue
 
 ```{r hpccbat, cache=FALSE}
 shNames <- paste0(xdb,'.sh')
-fileOut <- paste0(outDir, '/LEMA_hist_auto_v02.bat')
+fileOut <- paste0(outDir, '/LEMA_hist_fixed_v01.bat')
 
 # write out .bat file
 write_HPC_bat(shNames, fileOut)
