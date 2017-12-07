@@ -34,7 +34,7 @@ Prototype methods on a subset of raster cells, prioritizing LEMA
 ## Make a LEMA grid cell key
 Get raster template grid cell ids for LEMA in order to select cells from the master data files
 
-```{r lemaKey}
+```{r lemaKey, eval=FALSE}
 # gmd4+ raster grid (based on CDL clipped to study region boundary)
 aeaProj <- "+proj=aea +lat_1=29.5 +lat_2=45.5 +lat_0=23 +lon_0=-96 +x_0=0 +y_0=0 +ellps=GRS80 +datum=NAD83 +units=m +no_defs"
 template <- raster(nrow = 4359, ncol = 7108, crs = aeaProj,
@@ -99,10 +99,10 @@ lemaCombo <- lemaKey %>%
 # fill in single year missing values with...alfalfa? -------
 # filter out years with more than 1 NA
 lemaCombo$naCount <- apply(lemaCombo, 1, function(x) sum(is.na(x)))
-lemaCombo1 <- lemaCombo[lemaCombo$naCount < 2,] 
+lemaCombo2 <- lemaCombo[lemaCombo$naCount < 2,] 
 
 # get the weather/soil code for each cell
-lemaCombo1$static <- apply(lemaCombo1, 1, function(x) { 
+lemaCombo2$static <- apply(lemaCombo2, 1, function(x) { 
   static <- substr(x[9], start = 1, stop = 13)
   for (m in 1:length(static)){
     if (is.na(static[m])){
@@ -113,21 +113,18 @@ lemaCombo1$static <- apply(lemaCombo1, 1, function(x) {
 })
 
 # add alfalfa
+ind <- which(is.na(lemaCombo2), arr.ind=TRUE)
+lemaCombo2[ind] <- paste0(lemaCombo2$static,'0360')[ind[,1]]
 
-# remove rows with any NA's (for example, urban, roads, or other crop classes)
-someNAs <- lemaCombo[!complete.cases(lemaCombo),] 
-someNAs$naCount <- apply(someNAs, 1, function(x) sum(is.na(x)))
-lessNAs <- someNAs %>% filter(naCount < 6)
-
-lemaCombo2 <- lemaCombo[complete.cases(lemaCombo),]
-nrow(lemaCombo2) # there are 241606 "active" cells in Sheridan6
+# how many
+nrow(lemaCombo2) # there are 267650 "active" cells in Sheridan6
 
 # concatentate all annual columns to get one massive management string
 lema_raw <- tidyr::unite(lemaCombo2, 'rawRotations', -gridcell, remove=TRUE)
 
 # unique rotations
 lemaUnique <- unique(lema_raw$rawRotations)
-length(lemaUnique) # 59346 unique rotation sequences
+length(lemaUnique) # 71401 unique rotation sequences
 
 # assign ExpIDs to unique combinations
 ExpIDs <- paste0('L-',1:length(lemaUnique))
@@ -147,7 +144,7 @@ save(lemaExps,gridExps,
      file = paste0(filterDir,'/uniqueExperiments_gmd4p_Sheridan6.RData'))
 ```
 
-That produces 59,346 unique experiments for the LEMA region.
+That produces 59,346 unique experiments for the LEMA region. It becomes 71401 when you add alfalfa and fille in single NA cells, with alfalfa
 
 ## Visualize the experiment coverage
 or, what cells have values for the whole study period?
@@ -182,7 +179,7 @@ outRas <- template
 outRas[] <- cellVectors[,'x2006']
 
 outRasClip <- crop(outRas, aoi)
-spplot(outRasClip, add=T, col.regions='blue', maxPixels = 500000,
+spplot(outRasClip, add=T, col.regions='blue', maxPixels = 10000000,
        main = 'Active Cells')
 ```
 
