@@ -72,7 +72,14 @@ from https://www.bookstore.ksre.ksu.edu/pubs/l818.pdf - KS planting guide
 * row spacing: 10 - 30 inches, varying inches between seeds (20 in - 50.8 cm)
 * planting for zone 1: may 15-june 10
 
-**soybean:**  
+** alfalfa **
+* spacing in central KS (includes Sheridan): 20 - 30 inches
+* 220,000 seeds in a pound
+* dryland: 10 pounds per acre - 543 seeds per m2
+* irrigated:  10-20 pounds per acre - 15 lbs = 815 seeds
+* planted in KS zone 1 between April 25 - JUne 1
+
+**soybean:**
 
 * row width: state data says 19.2 - 23.5 (lets go with 54 cm)
 * pdf says ... just going with what Brian has used
@@ -101,7 +108,7 @@ wheatStart <- startYear -1
 endYear <- 2016
 Nyrs <- 12
 
-runTitle <- 'Lema_historic_02'
+runTitle <- 'Lema_historic_03'
 
 
 # load date file
@@ -110,22 +117,25 @@ dates <- read.csv(paste0(managementDir,'/NASS_dates_planting_maturity_harvest_KS
 
 # crop parameter key
 cropParamKey <- data.frame(crop = c('CORN','SOYBEANS','WHEAT','SORGHUM','GRASS',
-                                    'FALLOW'),
-                           CropMod = c('C','S','C','S','S','S'),
-                           SpeciesID = c('MZ','SB','WH','SG','PA','PA'),
-                           cultivar = c('MZH','','IB1015','','',''),
-                           Ppop_rain = c('3', '39.54', '494.21', '8.6', '50', '5'),
-                           Ppop_irr = c('7.5', '39.54', '494.21', '8.6', '50', '5'),
-                           RowSpc = c('76', '54', '19.05','50.8', '20', '50'),
-                           tillage = c('R','R','N','N','N','N'),
+                                    'FALLOW', 'ALFALFA'),
+                           CropMod = c('C','S','C','S','S','S','S'),
+                           SpeciesID = c('MZ','SB','WH','SG','PA','PA', 'AL'),
+                           cultivar = c('MZH','','IB1015','','','',''),
+                           Ppop_rain = c('3', '39.54', '494.21', '8.6', '50', '5', '543'),
+                           Ppop_irr = c('7.5', '39.54', '494.21', '16', '50', '5','815'),
+                           RowSpc = c('88.9', '54', '19.05','50.8', '20', '50', '76'),
+                          RowSp_irr = c('75', '54', '19.05','40', '20', '50','52'),
+                           tillage = c('R','R','N','N','N','N','N'),
                            # GMD4 is in zone 1, adjust state planting dates?
-                           plantDOY_adj = c(5,-5,-10,-5, 0, 0),
+                           plantDOY_adj = c(5,-5,-10,-5, 0, 0,10),
                            # fertilizer management - right now just always the same
-                           numFertEvents = c(2,0,1,0,0,0),
-                           ANFer1=c(rep(70,6)),
-                           ANFer2=c(rep(70,6)),
+                           numFertEvents = c(2,0,1,1,0,0,1),
+                           ANFer1=c(rep(70,7)),
+                           ANFer2=c(rep(70,7)),
                            # use median harvest date or auto harvest?
-                           harvestFlag = c('M','M','M','M','R','R'))
+                           harvestFlag = c('M','M','M','M','R','R','M'))
+
+
 
 #  to add rows for GRASS and FALLOW
 grassFallow <- data.frame(year = rep(startYear:endYear,2),
@@ -135,6 +145,14 @@ grassFallow <- data.frame(year = rep(startYear:endYear,2),
                           plantYear = rep(startYear:endYear,2),
                           harvYear = rep(startYear:endYear,2))
 
+alfalfa <- data.frame(year = startYear:endYear,
+                          crop = c('ALFALFA'),
+                          plantingDOY_50 = 127,
+                          harvestedDOY_50 = 182,
+                          plantYear = startYear:endYear,
+                          harvYear = startYear:endYear)
+toAdd <- rbind(alfalfa, grassFallow)
+
 # join and keep key fields
 cropManagement00 <- dates %>%
     mutate(plantYear = year(ymd(plantingDate_50)),
@@ -143,30 +161,30 @@ cropManagement00 <- dates %>%
            'harvYear')) 
 
 # add fallow and grass
-cropManagement <- rbind(cropManagement00, grassFallow) %>%
+cropManagement <- rbind(cropManagement00, toAdd)  %>%
   left_join(cropParamKey) %>%
   filter( year <= 2016) %>%
   arrange(year, crop)
 
 #cropManagement %>% group_by(crop) %>% summarize(meanPlant = mean(plantingDOY_50))
 
-cropkey <- data.frame(cropCode = c('001','004','005','024','061','176'),
-                       crop = c('CORN','SORGHUM','SOYBEANS','WHEAT',
+cropkey <- data.frame(cropCode = c('001','004','005','024','036','061','176'),
+                       crop = c('CORN','SORGHUM','SOYBEANS','WHEAT','ALFALFA',
                                     'FALLOW','GRASS'))
 ```
 
 
 ## Extract Lema scenarios
-Load the unique experiments and split into ~ 60 experiment files of 1000 runs each
+Load the unique experiments and split into ~ 71 experiment files of 1000 runs each
 
-Note teh ExpID's are linked back to the grid cells by the gridExps object also loaded with uniqueExperiments_gmd4p_Sheridan6.RData
+Note the ExpID's are linked back to the grid cells by the gridExps object also loaded with uniqueExperiments_gmd4p_Sheridan6.RData
 
 ```{r getCombos}
 # load 'lemaExps' from 2.21
 #comboDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/combinationGrids/spatialFilters'
 
 comboDir <- 'S:/Users/deinesji/HPA/Salus/lema/uniqueExperiments'
-load(file = paste0(comboDir,'/uniqueExperiments_gmd4p_Sheridan6.RData'))
+load(file = paste0(comboDir,'/uniqueExperiments_gmd4p_Sheridan6_top7.RData'))
 
 # how to break down into xml files? by NLDAS or NLDAS + soil?
 lemaExps2 <- lemaExps %>% 
@@ -177,7 +195,7 @@ lemaExps2 <- lemaExps %>%
          ExpCode = as.character(ExpCode))
 
 # make a grouping vector
-ngroup <- 60
+ngroup <- ceiling(nrow(lemaExps)/1000)
 groups <- sort(rep(1:ngroup, 1000))[1:nrow(lemaExps2)]
 
 # Assign into groups of 1000, sequentially
@@ -189,12 +207,16 @@ lemaExps3 <- lemaExps2 %>%
 
 ```{r writeExpts, cache=FALSE}
 # output directory
-OutDir <- 'E:/Jill/salusExperiments/lema_historic_auto_v02'
+OutDir <- 'E:/Jill/salusExperiments/3_lema_historic_fixed_v01'
 cropfile <- 'cropsn29Dec2016_SGttMatrFixed.cdb.xml'
 
 #OutDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/LEMA_historical_autoIrrigation_v01/xdbs'
 
 sleepDuration <- 0 # not needed on hydrocloud!
+
+irrFlag <- 'F'
+fixedIrr <- 25
+
 
 # write an experiment file for each xdb group
 for(g in 1:ngroup){
@@ -235,12 +257,14 @@ for(g in 1:ngroup){
     for(m in 1:nrow(annualSpecs)){
       # set irrigation flags
       if (annualSpecs$irrStatus[m] == 1) {
-        irrig <- 'A'
+        irrig <-irrFlag
         ppopCol <- 'Ppop_irr'
+        rowsCol <- 'RowSp_irr'
       }  
       if (annualSpecs$irrStatus[m] == 0){
         irrig <- 'N'
         ppopCol <- 'Ppop_rain'
+        rowsCol <- 'RowSpc'
       } 
       
       if (annualSpecs$numFertEvents[m] > 0) fert <- 'R'
@@ -260,7 +284,7 @@ for(g in 1:ngroup){
       write_xdb_mPlanting(outFile2, annualSpecs$CropMod[m], annualSpecs$SpeciesID[m], 
                           annualSpecs$cultivar[m], annualSpecs$plantYear[m], 
                           adjPlantDOY, annualSpecs[m,ppopCol],
-                          annualSpecs[m,'RowSpc'])
+                          annualSpecs[m,rowsCol])
       #Sys.sleep(sleepDuration)
       # management: fertilize
       if(fert == 'R'){
@@ -291,8 +315,8 @@ for(g in 1:ngroup){
       #Sys.sleep(sleepDuration)
       
       # management: irrigation
-      if(irrig == 'A'){
-        write_xdb_mIrrigate_Auto(outFile2)
+      if(irrig == irrFlag){
+        write_xdb_mIrrigate_Auto(outFile2, AIrAm = fixedIrr)
       }
       #Sys.sleep(sleepDuration)
       
@@ -324,7 +348,7 @@ for(g in 1:ngroup){
 make 1 sh file for each experiment
 
 ```{r hpccSh, cache=FALSE}
-xdbDir <- 'E:/Jill/salusExperiments/lema_historic_auto_v02'
+xdbDir <- 'E:/Jill/salusExperiments/3_lema_historic_fixed_v01'
 outDir <- xdbDir
 
 hpcHomeDir <- '/mnt/home/deinesji/salus/LEMA_historical_autoIrrigation_v02/'
