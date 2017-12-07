@@ -138,10 +138,10 @@ gridExps <- lemaExps %>%
 
 # write out Key
 write.csv(gridExps, row.names=FALSE,
-          file = paste0(filterDir, '/uniqueExperiments_gmd4p_Sheridan6_gridcellKey.csv'))
+          file = paste0(filterDir, '/uniqueExperiments_gmd4p_Sheridan6_gridcellKey_top7.csv'))
 # save key and unique combinations as RData
 save(lemaExps,gridExps, 
-     file = paste0(filterDir,'/uniqueExperiments_gmd4p_Sheridan6.RData'))
+     file = paste0(filterDir,'/uniqueExperiments_gmd4p_Sheridan6_top7.RData'))
 ```
 
 That produces 59,346 unique experiments for the LEMA region. It becomes 71401 when you add alfalfa and fille in single NA cells, with alfalfa
