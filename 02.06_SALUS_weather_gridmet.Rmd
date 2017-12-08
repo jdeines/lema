@@ -12,7 +12,7 @@ Goal: Create SALUS weather input (.wdb.xml) using GRIDMET data obtained from Goo
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.06_SALUS_weather_gridmet/',
-                      cache = TRUE)
+                      cache = FALSE)
 ```
 
 **R Packages Needed**
