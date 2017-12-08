@@ -19,68 +19,67 @@ import numpy
 from subprocess import Popen, PIPE, STDOUT
 
 
-scrdir = "/mnt/home/deinesji/salus/4_lema_hist_fixed_v02/results/""
+scrdir = "/mnt/home/deinesji/salus/4_lema_hist_fixed_v02/results/"
 outfile = "/mnt/home/deinesji/salus/4_lema_hist_fixed_v02/redoRuns.bat"
 expts = ['X_'+str(num) for num in numpy.arange(1,73)]
-DayVars = "ExpID,Title,SpeciesID,GWAD,IRRC,DRNC,PREC,LAI""
+DayVars = "ExpID,Title,SpeciesID,GWAD,IRRC,DRNC,PREC,LAI"
 SeaVars = "ExpID,Title,SpeciesID,GWAD"
 logSuccess = "Run completed."
 
 # loop through all the result files 	
 with open(outfile, 'w') as out:
     for exp in expts:
-      for chunk in range(0,11): # 0 - 10
-          redo = False
-          resultS = os.path.join(scrdir, exp + "_seasonal.csv")
-          resultD = os.path.join(scrdir, exp + "_daily.csv")
-          log = os.path.join(scrdir, exp "_salus.log")
-  
-          #if "sd_3_SC5" not in resultS:
-          # Check Seasonal
-          if os.path.isfile(resultS):
-              with open(resultS, 'r') as f:
-                  first_line = f.readline()
-                  first_line = first_line.replace(" ","")
-                  first_line = first_line.replace("\n","")
-              if first_line != SeaVars:
-                  print("MISSING VARIABLES: " + resultS )
-                  print("First line", first_line)
-                  print("Should be ", SeaVars)
-                  redo = True
-          else:
-              print(resultS + " DOES NOT EXIST")
-              redo = True	
-          
-          # Check Daily
-          if os.path.isfile(resultD):
-              with open(resultD, 'r') as f:
-                  first_line = f.readline()
-                  first_line = first_line.replace(" ","")
-                  first_line = first_line.replace("\n","")
-              if first_line != DayVars:
-                  print("MISSING VARIABLES: " + resultD)
-                  print("First line", first_line)
-                  print("Should be ", DayVars)
-                  redo = True
-          else:
-              print(resultD + " DOES NOT EXIST")
+      redo = False
+      resultS = os.path.join(scrdir, exp + "_seasonal.csv")
+      resultD = os.path.join(scrdir, exp + "_daily.csv")
+      log = os.path.join(scrdir, exp + "_salus.log")
+
+      #if "sd_3_SC5" not in resultS:
+      # Check Seasonal
+      if os.path.isfile(resultS):
+          with open(resultS, 'r') as f:
+              first_line = f.readline()
+              first_line = first_line.replace(" ","")
+              first_line = first_line.replace("\n","")
+          if first_line != SeaVars:
+              print("MISSING VARIABLES: " + resultS )
+              print("First line", first_line)
+              print("Should be ", SeaVars)
               redo = True
-          
-          # Check Log
-          if os.path.isfile(log):
-              #last_line = subprocess.call(['tail', '-2', log])
-              f = subprocess.Popen(['tail', '-2', log], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-              last_line = f.stdout.readline()
-              #print(last_line)
-              if not logSuccess in last_line:
-                  print("LOG FILE ERROR: " + log)
-                  print("Last line", last_line)
-                  redo = True
-          else:
-              print(log + " DOES NOT EXIST")
+      else:
+          print(resultS + " DOES NOT EXIST")
+          redo = True	
+      
+      # Check Daily
+      if os.path.isfile(resultD):
+          with open(resultD, 'r') as f:
+              first_line = f.readline()
+              first_line = first_line.replace(" ","")
+              first_line = first_line.replace("\n","")
+          if first_line != DayVars:
+              print("MISSING VARIABLES: " + resultD)
+              print("First line", first_line)
+              print("Should be ", DayVars)
               redo = True
-  
-          # Write to redoRuns.bat
-          if redo:
-              qsubResult = "qsub " + exp + ".sh\n"
-              out.write(qsubResult)
+      else:
+          print(resultD + " DOES NOT EXIST")
+          redo = True
+      
+      # Check Log
+      if os.path.isfile(log):
+          #last_line = subprocess.call(['tail', '-2', log])
+          f = subprocess.Popen(['tail', '-2', log], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+          last_line = f.stdout.readline()
+          #print(last_line)
+          if not logSuccess in last_line:
+              print("LOG FILE ERROR: " + log)
+              print("Last line", last_line)
+              redo = True
+      else:
+          print(log + " DOES NOT EXIST")
+          redo = True
+
+      # Write to redoRuns.bat
+      if redo:
+          qsubResult = "qsub " + exp + ".sh\n"
+          out.write(qsubResult)
