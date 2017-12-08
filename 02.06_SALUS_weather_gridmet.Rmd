@@ -1,0 +1,224 @@
+---
+title: "Salus Weather Generator - GRIDMET"
+author: "Jill Deines"
+date: "December 7, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: Create SALUS weather input (.wdb.xml) using GRIDMET data obtained from Google Earth Engine, since NLDAS was wonky.
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.06_SALUS_weather_gridmet/',
+                      cache = TRUE)
+```
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+# to get nldas polygons and centroids for region of interest
+library(tidyverse)
+```
+
+# Input Data from GEE
+
+Note: Gridmet data accessed with Google Earth Engine script users/jdeines/default/LEMA/02.02_Get_ClimateData run on 12/7/17
+
+GRIDMET data was sampled to polygons of the NLDAS grid that include centroid coordinates and NLDAS cell elevation, created in 2.05_SALUS_weather.Rmd. Here's that code for posterity
+
+```{js eval=FALSE}
+// get gridmet for salus
+// december 7 2017
+
+// goal: sample gridmet at the nldas grid resolution for teh salus input file. variables 
+// retrieved include year, doy, srad, tmax, tmin
+
+// boundary extent
+var polygrid = ee.FeatureCollection('users/jdeines/vector/RRB/NLDAS_clipped_gmd4p');
+print(polygrid);
+
+// set years
+var startYear = 2000;
+var endYear = 2017;
+
+// collection info
+var climateName = 'IDAHO_EPSCOR/GRIDMET'
+var variables = ['pr','tmmn','tmmx','srad']
+
+var tempAdjust = -273.15;
+var sradConversion = 0.0864;
+
+// export info
+var exportFolder = 'lema_gridmet'
+var filename = 'Gridmet_gmd4p_nldasPolys'
+
+
+// end user vars --------------------------------------------------------
+
+var years = []
+for (var i = startYear; i <= endYear; i++) {
+    years.push(i)
+}
+var startDate = startYear + '-01-01';
+var endDate = endYear + '-12-31'
+
+// get mean annual precip by year 
+//var gridSum = years.map(function(year){
+var year = 1999;  
+  var startDate = year + '-01-01';
+  var endDate = year + '-12-31'
+
+  var gridmet = ee.ImageCollection(climateName)
+      .select(variables)
+      .filterDate(startDate, endDate);
+      
+  var gridmetAdjusted = gridmet.map(function(image){
+    var precip = image.select(['pr']);
+    var temps = image.select(['tmmn','tmmx']).add(tempAdjust);
+    var srad = image.select(['srad']).multiply(sradConversion);
+    return ee.Image.cat(precip, temps,srad).copyProperties(image)    
+  });
+  print(gridmetAdjusted)
+      
+  // get mean by polygon
+  var triplets = gridmetAdjusted.map(function(image) {
+  return image.reduceRegions({
+    collection: polygrid,
+    reducer: ee.Reducer.mean(),
+    scale: 2000
+  }).filter(ee.Filter.neq('mean', null))
+    .map(function(f) {
+      return f.set('day', image.get('system:index'));
+  });
+}).flatten();
+
+print(triplets.limit(1));
+
+// drop .geo contents
+var tripletsOut = triplets.select(['.*'], null, false);
+
+
+Export.table.toDrive({
+ collection: tripletsOut,
+  description: filename,
+  folder: exportFolder,
+ fileFormat: filename
+});
+```
+
+# User Variables 
+
+```{r userVars}
+# gridmet folder
+gridDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/gridmet_Jill'
+gridDataName <- 'Gridmet_gmd4p_nldasPolys.csv'
+
+# NLDAS date bounds
+startDate <- '2000-01-01'
+endDate <- '2017-10-31'
+
+# output subfolder
+outXmlDir <- 'gridmet_nldas_grid_20000101_20171201'
+```
+
+**END USER dEFINED VARIABLES**
+
+## Functions
+Functions to write out the wdb.xml top and bottom matter.
+
+```{r funs}
+# outFile <- paste0(gridDir, '/', outXmlDir, '/test.wdb.xml')
+# stationID <- '1100'
+# lat <- 45.3
+# lon <- 113.4
+# elev <- 938.12
+
+write_wdb_top <- function(outFile,stationID, lat, lon, elev){
+  cat(paste0('<WDB>\n  <Stations StationID="', stationID, '" Station_Name="', stationID, 
+             '" Place_Name="" Lat="', lat, '" Long="', lon, '" Elev="', elev,
+             '" Tav="" Amp="" Tmht="2" Wmht="">\n',
+             '    <Storm_Intensity>\n','    </Storm_Intensity>\n',
+             '    <Hourly_Rainfall>\n','    </Hourly_Rainfall>\n',
+             '    <Weather Columns="Year,DOY,SRAD,Tmax,Tmin,Rain,DewP,Wind,PAR">\n'),
+      file=outFile)
+}
+
+#write_wdb_top(outFile, stationID, lat, lon, elev)
+
+write_wdb_bottom <- function(outFile){
+  cat(paste0('    </Weather>\n  </Stations>\n  <Version_Control>\n',
+             '    <Version Number="1">\n',
+             '      <ReleaseDate>11/26/1999 12:00:00 AM</ReleaseDate>\n',
+             '      <Notes>Initial release, beta version.</Notes>\n',
+             '    </Version>\n    <Version Number="1.1">\n',
+             '      <ReleaseDate>11/27/1999 12:00:00 AM</ReleaseDate>\n',
+             '      <Notes>testing...</Notes>\n    </Version>\n',
+             '    <Version Number="X_1.1">\n      <ReleaseDate>03/20/2014</ReleaseDate>\n',
+             '      <Notes>Automatically converted from Access DB by',
+             ' salus_access2xmlprogram.</Notes>\n',
+             '    </Version>\n  </Version_Control>\n</WDB>'),
+      file=outFile, append=TRUE)
+}
+
+#write_wdb_bottom(outFile)
+```
+
+## Load data
+And do some cleaning
+
+* precip can't be negative (very very small negatives from encodings, i think i read on EE forum)
+
+```{r loaddata}
+# load data and keep key columns needed in wdb.xml
+gridData <- read_csv(paste0(gridDir, '/', gridDataName)) %>%
+  dplyr::select(c(gridCll, Lat, Lon, meanElv, day, srad, tmmx, tmmn, pr))
+
+# clean precip data - no negatives
+sum(gridData$pr < 0)
+head(gridData[gridData$pr < 0,'pr'])
+gridData[gridData$pr < 0,'pr'] <- 0
+sum(gridData$pr < 0)
+
+# check for other missing data
+sum(is.na(gridData$tmmn))
+sum(is.na(gridData$tmmx))
+sum(is.na(gridData$srad))
+sum(is.na(gridData$pr))
+
+# round data to 2 decimals and make year and doy columns
+gridData2 <- gridData %>%
+  mutate(srad = round(srad, 2),
+         tmmx = round(tmmx, 2),
+         tmmn = round(tmmn, 2),
+         pr = round(pr, 2),
+         year = as.numeric(substr(day, start =1, stop = 4))) %>%
+  group_by(gridCll, year) %>%
+  arrange(gridCll,day) %>%
+  mutate(DOY = 1:n()) 
+```
+
+## Write Wdb's!
+A separate wdb.xml for each grid cell
+
+```{r write_em, eval=FALSE}
+# split   and write out
+junk <- by(gridData2, gridData2$gridCll, function(x){
+  filename <- paste0(gridDir, '/', outXmlDir, '/', x$gridCll[1], '.wdb.xml')
+  # write top matter
+  write_wdb_top(filename, x$gridCll[1], x$Lat[1], x$Lon[1], x$meanElv[1])
+  # write data table
+  outdf <- x[,c('year','DOY','srad','tmmx','tmmn','pr')]
+  outdf$dewp <- NA
+  outdf$wind <- NA
+  outdf$par <- NA
+  write.table(outdf, filename, append=TRUE, na = '', 
+              sep = ',', row.names=FALSE, col.names=FALSE)
+  # write the bottom matter
+  write_wdb_bottom(filename)
+})
+```
+
+
+
