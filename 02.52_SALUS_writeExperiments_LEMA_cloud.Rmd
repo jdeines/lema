@@ -108,7 +108,7 @@ wheatStart <- startYear -1
 endYear <- 2016
 Nyrs <- 12
 
-runTitle <- 'Lema_historic_03'
+runTitle <- 'Lema_historic_04'
 
 
 # load date file
@@ -207,7 +207,7 @@ lemaExps3 <- lemaExps2 %>%
 
 ```{r writeExpts, cache=FALSE}
 # output directory
-OutDir <- 'E:/Jill/salusExperiments/3_lema_historic_fixed_v01'
+OutDir <- 'E:/Jill/salusExperiments/4_lema_historic_fixed_v02'
 cropfile <- 'cropsn29Dec2016_SGttMatrFixed.cdb.xml'
 
 #OutDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/LEMA_historical_autoIrrigation_v01/xdbs'
@@ -348,15 +348,15 @@ for(g in 1:ngroup){
 make 1 sh file for each experiment
 
 ```{r hpccSh, cache=FALSE}
-xdbDir <- 'E:/Jill/salusExperiments/3_lema_historic_fixed_v01'
+xdbDir <- 'E:/Jill/salusExperiments/4_lema_historic_fixed_v02'
 outDir <- xdbDir
 
-hpcHomeDir <- '/mnt/home/deinesji/salus/3_LEMA_hist_fixed_v01/'
-hpcOutDir <- '/mnt/home/deinesji/salus/3_LEMA_hist_fixed_v01/results/'
+hpcHomeDir <- '/mnt/home/deinesji/salus/4_lema_hist_fixed_v02/'
+hpcOutDir <- '/mnt/home/deinesji/salus/4_lema_hist_fixed_v02/results/'
 
 # be mindful of extensions
 sdb <- "KS"
-wdbZip <- 'nldas_wdb_xmls_gmd4p_cleaned.tar.gz'
+wdbZip <- 'gridmet_nldas_grid_20000101_20171201.tar.gz'
 cropfile <- 'cropsn29Dec2016_SGttMatrFixed'
 
 # extract xdb name from xmls
@@ -380,7 +380,7 @@ sends the sh files to queue
 
 ```{r hpccbat, cache=FALSE}
 shNames <- paste0(xdb,'.sh')
-fileOut <- paste0(outDir, '/LEMA_hist_fixed_v01.bat')
+fileOut <- paste0(outDir, '/LEMA_hist_fixed_v02.bat')
 
 # write out .bat file
 write_HPC_bat(shNames, fileOut)
