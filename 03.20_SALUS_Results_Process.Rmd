@@ -10,8 +10,8 @@ output:
 Goal: Build SALUS results workflow to process LEMA output back into a spatial grid
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.20_salus_results_process/',
-                      cache = FALSE, cache.path='cache/03.20_salus_results_lema/')
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.20_4_salus_results_process/',
+                      cache = FALSE, cache.path='cache/03.20_4_salus_results_lema/')
 ```
 
 **R Packages Needed**
@@ -31,12 +31,12 @@ library(salustools)
 
 ```{r dirs}
 # directory for cleaned/summarized to annual values salus output
-resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/3_LEMA_hist_fixed_v01/results'
+resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/4_LEMA_hist_fixed_v02/results'
 # subfolder for maps output
 subf <- 'maps'
 
 # run name
-runname <- '3_lema_historic_fixed_v01'
+runname <- '4_lema_historic_fixed_v02'
 
 # time frame
 startYear <- 2006 # excluding wheat planting, aka first year of harvest
@@ -249,7 +249,7 @@ spplot(irrStack[['X2012']], main = '2012 salus irrigation')
 * drainage...
 * yields - summed by crop type
 
-```{r toTable}
+```{r toTable, eval=FALSE}
 
 # get total irrigation over time
 irrVolStack <- irrStack * 1e-3 * 30 * 30  # volumetric rasters
@@ -314,7 +314,7 @@ ggplot(allpppt, aes(x=year, y = mean, color = dataset)) +
 
 A few individual year maps, and get total recharge  time series. Includes converting mm to m2
 
-```{r spRch2}
+```{r spRch2, eval=FALSE}
 spplot(rchStack[['X2006']], main = '2006 recharge')
 spplot(rchStack[['X2012']], main = '2012 recharge')
 
@@ -334,7 +334,7 @@ ggplot(rchByYear, aes(x=year, y = rch_m3)) +
 
 ### Yield
 
-```{r spYield, fig.width = 9, fig.height = 5}
+```{r spYield3, fig.width = 9, fig.height = 5, eval=FALSE}
 # load formatted results output
 expt.annual <- read_csv(paste0(resultsDir, '/', runname, '.csv'))
 variable <- 'GWAD'
@@ -356,7 +356,7 @@ spplot(yieldStack, main = 'Yield, kg/ha, run 3', maxpixels = 200000)
 
 A few individual year maps, 
 
-```{r spyield2}
+```{r spyield2, eval=FALSE}
 spplot(yieldStack[['X2006']], main = '2006 yield (k/ha)')
 spplot(yieldStack[['X2012']], main = '2012 yield (k/ha)')
 

@@ -36,7 +36,7 @@ wellDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/wellData/WIMAS_Ant
 wimas <- read.csv(paste0(wellDir, '/WIMAS_1990-2016_gwPts_ksHpa.csv'))
 
 # boundaries of interest
-sheridan <- st_read(paste0(gisDir,'/Sheridan6_trace.shp'), quiet=TRUE)
+sheridan <- st_read(paste0(gisDir,'/Sheridan6_fromKGS_sd6.shp'), quiet=TRUE)
 sheridan$Id <- 'Sheridan'
 
 gmds.ll <- st_read(paste0(gisDir, '/KS - GROUNDWATER_DISTRICTS.shp'),quiet = TRUE)
@@ -54,8 +54,8 @@ KSrrca <- st_transform(KSrrca, 5070)
 
 # visualize
 plot(gmds[1], main='Some Regions', graticule = st_crs(gmds.ll), axes=TRUE)
-plot(KSrrca, add=TRUE)
-plot(sheridan, add=TRUE)
+plot(KSrrca[1], add=TRUE)
+plot(sheridan[1], add=TRUE)
 
 # spatialize well data
 wimasLL <- st_as_sf(x = wimas,
@@ -88,8 +88,8 @@ wellsLema <- st_join(wimas.aea, sheridan) %>% filter(Id == 'Sheridan')
 length(unique(wellsLema$PDIV_ID))
 
 # plot wells
-plot(sheridan, main = '222 Wells in Sheridan 6')
-plot(wellsLema[wellsLema$year ==2000,1], add=TRUE, pch = 19)
+plot(sheridan[1], main = '222 Wells in Sheridan 6', axes=TRUE)
+plot(wellsLema[wellsLema$year ==2000,1], add=TRUE, pch = 19, col='magenta')
 
 lemakey <- data.frame(year = 1990:2016,
                       LEMA = c(rep('preLema',23), rep('lema',4)))
@@ -104,9 +104,52 @@ prepost <- wellsLema2 %>%
 
 longg <- gather(prepost, key = dataset, value = value, meanVol:meanAcres)
 
-ggplot(longg, aes(x=LEMA, y = value)) + 
-  geom_bar(stat='identity') + facet_wrap(~dataset)
+ggplot(longg, aes(x=LEMA, y = value, fill=LEMA)) + 
+  geom_bar(stat='identity') + facet_wrap(~dataset) +
+  ggtitle('1990-2016')
+
+
+yeartrunc <- 2005
+prepost2 <- wellsLema2 %>%
+  filter(year > yeartrunc) %>%
+  group_by(LEMA) %>%
+  summarize(meanVol = mean(volume, na.rm=T), 
+            meanAcres = mean(acres, na.rm=T),
+            meanDepth = mean(depth, na.rm=T))
+
+longg2 <- gather(prepost2, key = dataset, value = value, meanVol:meanAcres)
+
+ggplot(longg2, aes(x=LEMA, y = value, fill=LEMA)) + 
+  geom_bar(stat='identity') + facet_wrap(~dataset) +
+  ggtitle(paste0(yeartrunc,'-2016'))
+
 ```
+
+Export sheridan irrigation numbers for validation
+
+```{r wellExport, eval=FALSE}
+# convert to cubic meters/metric
+wellsdf <- as.data.frame(wellsLema2) %>% select(-geometry)
+wellExport <- wellsdf %>% 
+  mutate(area_m2 = acres * 4046.86,
+         depth_m = depth * 0.3048,
+         volume_m3 = volume * 1233.48)
+
+# summary stats
+wellStatsExport <- wellExport %>%
+  group_by(year) %>%
+  summarise(totalVol_m3 = sum(volume_m3, na.rm=TRUE),
+            totalArea_m2 = sum(area_m2, na.rm=TRUE),
+            meanDepth_m = mean(depth_m, na.rm=TRUE)) %>%
+  mutate(masterid = 'Sheridan6')
+
+write.csv(wellExport, row.names=FALSE,
+          file = paste0(wellDir,'/WIMAS_Sheridan_1990-2016.csv'))
+
+write.csv(wellStatsExport, row.names=FALSE,
+          file = paste0(wellDir,'/WIMAS_Sheridan_1990-2016_aggregates.csv'))
+```
+
 
 A more nuanced approach: build a linear model to predict LEMA years, and then compare. The purpose of this is to account for precipitation and general trends in decreasing irrigation depths.
 

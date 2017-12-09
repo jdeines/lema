@@ -19,8 +19,8 @@ import numpy
 from subprocess import Popen, PIPE, STDOUT
 
 
-scrdir = "/mnt/home/deinesji/salus/4_lema_hist_fixed_v02/results/"
-outfile = "/mnt/home/deinesji/salus/4_lema_hist_fixed_v02/redoRuns.bat"
+scrdir = "/mnt/home/deinesji/salus/5_lema_hist_fixed_v03/results/"
+outfile = "/mnt/home/deinesji/salus/5_lema_hist_fixed_v03/redoRuns.bat"
 expts = ['X_'+str(num) for num in numpy.arange(1,73)]
 
 base = "ExpID,RID,RcID,Year,DOY,Title"
