@@ -28,6 +28,17 @@ library(viridis)
 #library(rasterVis)
 ```
 
+# SALUS Output
+
+## Irrigation Maps by Year
+
+```{r irrMaps}
+# load irr rasters
+resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/5_LEMA_hist_fixed_v03/results/maps'
+load(paste0(resultsDir, '/All_Irr_Rch_precip_stacks.RData'))
+```
+
+
 # Background Figures
 
 ## HPA Depletion

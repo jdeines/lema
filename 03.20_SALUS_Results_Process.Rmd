@@ -10,7 +10,7 @@ output:
 Goal: Build SALUS results workflow to process LEMA output back into a spatial grid
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.20_4_salus_results_process/',
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.20_5_salus_results_process/',
                       cache = FALSE, cache.path='cache/03.20_4_salus_results_lema/')
 ```
 
@@ -31,12 +31,12 @@ library(salustools)
 
 ```{r dirs}
 # directory for cleaned/summarized to annual values salus output
-resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/4_LEMA_hist_fixed_v02/results'
+resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/5_LEMA_hist_fixed_v03/results'
 # subfolder for maps output
 subf <- 'maps'
 
 # run name
-runname <- '4_lema_historic_fixed_v02'
+runname <- '5_lema_historic_fixed_v03'
 
 # time frame
 startYear <- 2006 # excluding wheat planting, aka first year of harvest
@@ -173,7 +173,7 @@ yearsWanted <- startYear:endYear
 
 ```{r spIrr, fig.width = 9, fig.height = 5}
 irrStack <- spatializeAll(expt.annual, 'IRRC_mm', yearsWanted, gridExps,
-                          template, aoi, writeOut = 'Y', outFolder = outdir)
+                          template, aoi, writeOut = 'N', outFolder = outdir)
 spplot(irrStack, main = 'SALUS Irrigation (mm)', maxpixels = 200000)
 ```
 
@@ -181,7 +181,7 @@ spplot(irrStack, main = 'SALUS Irrigation (mm)', maxpixels = 200000)
 
 ```{r spPrecip, fig.width = 9, fig.height = 5}
 pcpStack <- spatializeAll(expt.annual, 'PREC_mm', yearsWanted, gridExps,
-                          template, aoi, writeOut = 'Y', outFolder = outdir)
+                          template, aoi, writeOut = 'N', outFolder = outdir)
 spplot(pcpStack, main = 'NLDAS Precip (mm)', maxpixels = 200000)
 ```
 
@@ -189,8 +189,13 @@ spplot(pcpStack, main = 'NLDAS Precip (mm)', maxpixels = 200000)
 
 ```{r spRecharge, fig.width = 9, fig.height = 5}
 rchStack <- spatializeAll(expt.annual, 'DRNC_mm', yearsWanted, gridExps,
-                          template, aoi, writeOut = 'Y', outFolder = outdir)
+                          template, aoi, writeOut = 'N', outFolder = outdir)
 spplot(rchStack, main = 'SALUS Recharge (mm)', maxpixels = 200000)
+
+
+#save the stacks
+save(irrStack, pcpStack, rchStack, file = paste0(outdir,
+                                                 '/All_Irr_Rch_precip_stacks.RData'))
 ```
 
 ### Yield
