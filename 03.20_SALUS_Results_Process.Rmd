@@ -199,51 +199,76 @@ save(irrStack, pcpStack, rchStack, file = paste0(outdir,
 ```
 
 ### Yield
-Break down by crop
+Break down by crop and irrigation status
 
-```{r spYield, fig.width = 9, fig.height = 5, eval = FALSE}
+#### Irrigated
+
+```{r spYield_irr, fig.width = 9, fig.height = 5}
 yield <- 'GWAD'
 
 crops <- c('MZ','WH','SG','SB','AL')
 
-allCrops <- list()
+irrCrops <- expt.annual %>% filter(irrigation == 'Y') 
+
+irrCropsList <- list()
 for(m in 1:length(crops)){
   # subset results for crop
   crop <- crops[m]
-  cropdf <- expt.annual %>% filter(SpeciesID == crop)
+  cropdf <- irrCrops %>% filter(SpeciesID == crop)
   cropStack <- spatializeAll(cropdf, yield, yearsWanted, gridExps,
                           template, aoi, writeOut = 'N', outFolder = outdir)
-  allCrops[[crop]] <- cropStack
+  irrCropsList[[crop]] <- cropStack
 }
 
 # save as RData
-save(allCrops, file = paste0(outdir, '/AllCrops_YieldMaps.RData'))
+save(irrCropsList, file = paste0(outdir, '/All_IrrigatedCrops_YieldMaps.RData'))
 
 # ie corn yield map
-cornStack <- allCrops[['MZ']]
-spplot(cornStack, main = 'Corn Yield, kg/ha', maxpixels = 200000)
+cornStacki <- irrCropsList[['MZ']]
+spplot(cornStacki, main = 'Irrigated Corn Yield, kg/ha', maxpixels = 100000)
 ```
 
-```{r yieldMaps, fig.width = 9, fig.height = 5}
-load(file = paste0(outdir, '/AllCrops_YieldMaps.RData'))
+#### Not Irrigated
+
+```{r spYield_rain, fig.width = 9, fig.height = 5}
+yield <- 'GWAD'
+
+crops <- c('MZ','WH','SG','SB','AL')
+
+rainCrops <- expt.annual %>% filter(irrigation == 'N') 
+
+rainCropsList <- list()
+for(m in 1:length(crops)){
+  # subset results for crop
+  crop <- crops[m]
+  cropdf <- rainCrops %>% filter(SpeciesID == crop)
+  cropStack <- spatializeAll(cropdf, yield, yearsWanted, gridExps,
+                          template, aoi, writeOut = 'N', outFolder = outdir)
+  rainCropsList[[crop]] <- cropStack
+}
+
+# save as RData
+save(rainCropsList, file = paste0(outdir, '/All_RainfedCrops_YieldMaps.RData'))
 
 # ie corn yield map
-cornStack <- allCrops[['MZ']]
-spplot(cornStack, main = 'Corn Yield, kg/ha', maxpixels = 200000)
-
-# ie wheat yield map
-wheatStack <- allCrops[['WH']]
-spplot(wheatStack, main = 'wheat Yield, kg/ha', maxpixels = 200000)
+cornStackr <- rainCropsList[['MZ']]
+spplot(cornStackr, main = 'Rainfed Corn Yield, kg/ha', maxpixels = 100000)
 ```
 
 
 ## some individual year maps
 
 ```{r indvlMaps}
-spplot(irrStack[['X2006']], main = '2006 salus irrigation')
-spplot(irrStack[['X2012']], main = '2012 salus irrigation')
+spplot(irrStack[['X2008']], main = '2008 salus irrigation (mm)')
+spplot(irrStack[['X2012']], main = '2012 salus irrigation (mm)')
+spplot(irrStack[['X2013']], main = '2013 salus irrigation (mm)')
 
+spplot(rchStack[['X2008']], main = '2008 salus recharge (mm)')
+spplot(rchStack[['X2012']], main = '2012 salus recharge (mm)')
+spplot(rchStack[['X2013']], main = '2013 salus recharge (mm)')
 
+spplot(cornStacki[['X2011']], main = '2011 Irrigated Corn Yield (kg/ha)')
+spplot(cornStackr[['X2011']], main = '2011 Rainfed Corn Yield (kg/ha)')
 ```
 
 
@@ -254,116 +279,118 @@ spplot(irrStack[['X2012']], main = '2012 salus irrigation')
 * drainage...
 * yields - summed by crop type
 
-```{r toTable, eval=FALSE}
-
+```{r waterVarsTable}
 # get total irrigation over time
-irrVolStack <- irrStack * 1e-3 * 30 * 30  # volumetric rasters
+irrVolStack <- irrStack * 1e-3 * 30 * 30  # volumetric rasters in cubic meters
 
 irrByYear <- data.frame(year = yearsWanted,
                         irr_m3 = cellStats(irrVolStack, stat = 'sum', na.rm=TRUE))
 irrByYear$irr_km3 <- irrByYear$irr_m3 * 1e-6
 
-ggplot(irrByYear, aes(x=year, y = irr_km3)) +
-  geom_line() + theme_bw() +
-  ylab('Total Irrigation, Cubic km') +
-  ggtitle('Salus Irrigation over Time')
-```
-
-
-
-A few individual year maps, and get mean annual precip over time
-
-```{r spPcp2}
-spplot(pcpStack[['X2006']], main = '2006 nldas precipitation')
-spplot(pcpStack[['X2012']], main = '2012 nldas precipitation')
-
 # get total ppt  over time
 pcpByYear <- data.frame(year = yearsWanted,
                         precip_mm = cellStats(pcpStack, stat = 'mean', na.rm=TRUE))
 
-ggplot(pcpByYear, aes(x=year, y = precip_mm)) +
-  geom_line() + theme_bw() +
-  ylab('Mean Annual Precip (mm)') +
-  ggtitle('Precipitation')
-```
-
-#### Precip check
-that's a bit bizarre, check against direct NLDAS and GRIDMET data
-
-```{r pcheck}
-wdir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/weatherCheckSheridan'
-nldas <- read_csv(paste0(wdir,'/Sheridan5_nldas_meanPrecip_1000.csv')) %>%
-  dplyr::select(c(mean, year)) %>%
-  mutate(dataset = 'nldas')
-
-gridmet <- read_csv(paste0(wdir,'/Sheridan5_gridmet_meanPrecip_1000.csv')) %>%
-  dplyr::select(c(mean, year)) %>%
-  mutate(dataset = 'gridmet')
-
-geePrecip <- rbind(nldas, gridmet)
-
-pcpByYear2 <- pcpByYear %>%
-  rename(mean = precip_mm) %>%
-  mutate(dataset = 'salus')
-
-allpppt <- rbind(geePrecip, pcpByYear2)
-
-ggplot(allpppt, aes(x=year, y = mean, color = dataset)) +
-  geom_line() + ylab('mean annual ppt (mm)') +
-  ggtitle('NLDAS/SALUS vs GRIDMET') +
-  theme_bw()
-
-```
-
-
-
-A few individual year maps, and get total recharge  time series. Includes converting mm to m2
-
-```{r spRch2, eval=FALSE}
-spplot(rchStack[['X2006']], main = '2006 recharge')
-spplot(rchStack[['X2012']], main = '2012 recharge')
-
-# get total rch over time
+# get total recharge over time
 rchVolStack <- rchStack * 1e-3 * 30 * 30  # volumetric rasters
 
 rchByYear <- data.frame(year = yearsWanted,
                         rch_m3 = cellStats(rchVolStack, stat = 'sum', na.rm=TRUE))
-rchByYear$rch_m3 <- rchByYear$rch_m3 * 1e-6
+rchByYear$rch_km3 <- rchByYear$rch_m3 * 1e-6
 
-ggplot(rchByYear, aes(x=year, y = rch_m3)) +
-  geom_line() + theme_bw() +
-  ylab('Total Recharge, Cubic km') +
-  ggtitle('Salus Recharge over Time')
+# combine
+waterVars <- irrByYear %>%
+  left_join(pcpByYear, by = 'year') %>%
+  left_join(rchByYear, by = 'year')
+
+waterVarsLong <- waterVars %>%
+  select(c(year, irr_km3, precip_mm, rch_km3)) %>%
+  gather(., key = variable, value = value, irr_km3:rch_km3)
+
+ggplot(waterVarsLong, aes(x=year, y = value)) +
+  geom_line() + 
+  facet_wrap(~variable, nrow=3, scale = 'free_y') +
+  theme_bw() +
+  ylab('Total Recharge (km^3)       Annual Precip (mm)     Irrigation (km^3)') +
+  ggtitle('Salus Water Variables')
+
+# export
+write.csv(waterVars, row.names = FALSE,
+          file = paste0(resultsDir,'/WaterVars_meansTotals.csv'))
 ```
 
 
 ### Yield
+I'm going to need to revisit these to get summary stats, not just mean!
 
-```{r spYield3, fig.width = 9, fig.height = 5, eval=FALSE}
-# load formatted results output
-expt.annual <- read_csv(paste0(resultsDir, '/', runname, '.csv'))
-variable <- 'GWAD'
+#### Irrigated
 
-# vector of years wanted
-yearsWanted <- startYear:endYear
+```{r getYields}
+crops <- c('MZ','WH','SG','SB','AL')
 
-# irrigation stack
-yieldList <- list()
-for(year in yearsWanted){
-  rasName <- as.character(year)
-  yieldList[[rasName]] <- salustools::spatialize(expt.annual, variable, year, 
-                                        gridExps, template,aoi)
-}  
-yieldStack <- stack(yieldList, quick = TRUE)
+yielddf <- data.frame(year = rep(yearsWanted,2),
+                      irrigated = rep(c('Y','N'), length(yearsWanted)),
+                      MZ_kg = NA,
+                      WH_kg = NA,
+                      SG_kg = NA,
+                      SB_kg = NA,
+                      AL_kg = NA,
+                      MZ_kgha = NA,
+                      WH_kgha = NA,
+                      SG_kgha = NA,
+                      SB_kgha = NA,
+                      AL_kgha = NA)
 
-spplot(yieldStack, main = 'Yield, kg/ha, run 3', maxpixels = 200000)
+# get yield for Sheridan: rainfed
+for(crop in crops) {
+  # extract crop
+  yieldStack <- rainCropsList[[crop]]
+  # convert to kg per pixel (900m2) to be able to sum total
+  yield30 <- yieldStack / 10000 * 900
+  kgname <- paste0(crop,'_kg')
+  yielddf[yielddf$irrigated=='N',kgname] <- cellStats(yield30, stat = 'sum',
+                                      na.rm=TRUE)
+  # get mean kg.ha  
+  kghaname <- paste0(crop,'_kgha')
+  yielddf[yielddf$irrigated=='N',kghaname] <- cellStats(yieldStack, stat = 'mean',
+                                                        na.rm=TRUE)
+}
+
+# get  kg yield for Sheridan: irrigated
+for(crop in crops) {
+  # extract crop
+  yieldStack <- irrCropsList[[crop]]
+  # convert to kg per pixel (900m2) to be able to sum total
+  yield30 <- yieldStack / 10000 * 900
+  kgname <- paste0(crop,'_kg')
+  yielddf[yielddf$irrigated=='Y',kgname] <- cellStats(yield30, stat = 'sum',
+                                      na.rm=TRUE)
+  # get mean kg.ha  
+  kghaname <- paste0(crop,'_kgha')
+  yielddf[yielddf$irrigated=='Y',kghaname] <- cellStats(yieldStack, stat = 'mean',
+                                                        na.rm=TRUE)
+}
+
+# turn to long format
+yieldlong <- yielddf %>%
+  gather(key = crop, value = value, MZ_kg:AL_kgha) %>%
+  mutate(units = substr(crop, start = 4, stop = nchar(crop)),
+         crop = substr(crop, start = 1, stop = 2)) %>% 
+         spread(key = units, value = value)
+
+ggplot(yieldlong, aes(x=year, y = kgha, color=irrigated)) +
+  geom_line() + 
+  facet_wrap(~crop) + theme_bw() + 
+  ggtitle('mean sheridan yield (kg/ha)')
+
+ggplot(yieldlong, aes(x=year, y = kg, color=irrigated)) +
+  geom_line() + 
+  facet_wrap(~crop) + theme_bw() +
+  ggtitle('total sheridan yield (kg)')
+
+write.csv(yieldlong, row.names=FALSE,
+          file = paste0(resultsDir,'/yields_meansTotals.csv'))
 ```
 
-A few individual year maps, 
-
-```{r spyield2, eval=FALSE}
-spplot(yieldStack[['X2006']], main = '2006 yield (k/ha)')
-spplot(yieldStack[['X2012']], main = '2012 yield (k/ha)')
 
 
-```
