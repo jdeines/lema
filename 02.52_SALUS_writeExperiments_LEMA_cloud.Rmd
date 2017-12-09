@@ -25,6 +25,8 @@ alfalfa added haphazardly
 
 Update 12/8/17: added a patch for soil mukeys missing in teh KS.sdb.xml from Lydia
 
+Update 12/9/2017: make soil irrigation water threshold a varialbe. don't forget to reset to the default of 50% in the future
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.52_salus_expt_lema/',
                       cache = FALSE, cache.path='cache/02.52_salus_expt_lema/')
@@ -111,8 +113,7 @@ wheatStart <- startYear -1
 
 endYear <- 2016
 Nyrs <- 12
-
-runTitle <- 'Lema_historic_04'
+runTitle <- 'Lema_historic_06'
 
 
 # load date file
@@ -208,7 +209,7 @@ lemaExps3 <- lemaExps2 %>%
 ```
 
 ### SOIL PATCH
-get a vector of mukeys not int he ks fiel to replace
+get a vector of mukeys not in the ks file to replace
 
 ```{r badSoilds}
 # lydia's list of soil mukeys in ks
@@ -234,7 +235,7 @@ lemaExps3[!(lemaExps3$mukey %in% validMukeys$mukey),'mukey'] <- replaceKey
 
 ```{r writeExpts, cache=FALSE}
 # output directory
-OutDir <- 'E:/Jill/salusExperiments/5_lema_historic_fixed_v03'
+OutDir <- 'E:/Jill/salusExperiments/7_lema_historic_realEst_v02'
 cropfile <- 'cropsn29Dec2016_SGttMatrFixed.cdb.xml'
 
 #OutDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/LEMA_historical_autoIrrigation_v01/xdbs'
@@ -242,7 +243,8 @@ cropfile <- 'cropsn29Dec2016_SGttMatrFixed.cdb.xml'
 sleepDuration <- 0 # not needed on hydrocloud!
 
 irrFlag <- 'F'
-fixedIrr <- 25
+fixedIrr <- 50  # to have salus decide, use '' empty quotes
+soilIrrThreshold <- 50 # threshold of soil water for auto irrigation - default runs are 50
 
 
 # write an experiment file for each xdb group
@@ -345,7 +347,7 @@ for(g in 1:ngroup){
       
       # management: irrigation
       if(irrig == irrFlag){
-        write_xdb_mIrrigate_Auto(outFile2, AIrAm = fixedIrr)
+        write_xdb_mIrrigate_Auto(outFile2, AIrAm = fixedIrr, ThetaC = 80)
       }
       #Sys.sleep(sleepDuration)
       
@@ -380,8 +382,8 @@ make 1 sh file for each experiment
 xdbDir <- OutDir
 xdbOut <- xdbDir
 
-hpcHomeDir <- '/mnt/home/deinesji/salus/5_lema_hist_fixed_v03/'
-hpcOutDir <- '/mnt/home/deinesji/salus/5_lema_hist_fixed_v03/results/'
+hpcHomeDir <- '/mnt/home/deinesji/salus/7_lema_hist_realEst_v02/'
+hpcOutDir <- '/mnt/home/deinesji/salus/7_lema_hist_realEst_v02/results/'
 
 # be mindful of extensions
 sdb <- "KS"
@@ -394,7 +396,7 @@ xdb <- sapply(strsplit(list.files(xdbDir, pattern='*.xdb.xml'),'.', fixed=TRUE),
 DayVars <- 'ExpID,Title,SpeciesID,GWAD,IRRC,DRNC,PREC,LAI'
 SeaVars <- 'ExpID,Title,SpeciesID,GWAD'
 
-walltime <- '01:00:00'
+walltime <- '01:30:00'
 memory <- '2000mb'
 
 # loop over xdbs
@@ -409,7 +411,7 @@ sends the sh files to queue
 
 ```{r hpccbat, cache=FALSE}
 shNames <- paste0(xdb,'.sh')
-fileOut <- paste0(xdbOut, '/LEMA_hist_fixed_v05.bat')
+fileOut <- paste0(xdbOut, '/LEMA_hist_fixed_v06.bat')
 
 # write out .bat file
 write_HPC_bat(shNames, fileOut)
