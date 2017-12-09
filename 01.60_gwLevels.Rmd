@@ -1,0 +1,33 @@
+---
+title: "Water Levels"
+author: "Jill Deines"
+date: "December 9, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: smoosh together the water level change results from Erin
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/01.60_gwLevels/',
+                      cache = FALSE)
+```
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(lubridate)
+#library(devtools)
+#install_github("jdeines/salustools")
+library(salustools) # from Jill's github, for nqblack theme
+```
+
+**Directories**
+
+```{r dirs}
+wlDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/waterLevels_Haacker'
+decline <- read_csv(paste0(wlDir,'/TotalVolume_LEMA_Sheridan6.txt'))
+```
+
