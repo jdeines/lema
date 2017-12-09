@@ -63,7 +63,7 @@ wimasstats <- wimas %>%
   summarise(irr_m3 = sum(volume_m3, na.rm=TRUE),
             totalArea_m2 = sum(area_m2, na.rm=TRUE),
             meanDepth_m = mean(depth_m, na.rm=TRUE)) %>%
-  mutate(irrigated_km2 = totalArea_m2 * 1e-3,
+  mutate(irrigated_km2 = totalArea_m2 * 1e-6,
          irr_km3 = irr_m3 * 1e-6,
          masterid = 'Sheridan6',
          datasource = 'WIMAS') %>%
@@ -87,6 +87,20 @@ ggplot(irrwater, aes(x = year, y = value, color=datasource)) +
   theme_bw() + ggtitle('Evidence for excessive water use prior to LEMA')
 ```
 
+## Irrigated Area
+
+```{r irrArea}
+irrArea <- irrigationSummary %>% filter(variable == 'irrigated_km2')
+ggplot(irrArea, aes(x = year, y = value, color=datasource)) +
+  geom_line() + ylim(-0, 125) +
+  ylab('Irrigation Area (km^2)') + xlab('') +
+  theme_bw() + ggtitle('Irrigated Area Comparison')
+
+ggplot(irrArea[irrArea$year > 2005,], aes(x = year, y = value, color=datasource)) +
+  geom_line() + ylim(-0, 125) +
+  ylab('Irrigation Area (km^2)') + xlab('') +
+  theme_bw() + ggtitle('Irrigated Area Comparison')
+```
 
 
 
