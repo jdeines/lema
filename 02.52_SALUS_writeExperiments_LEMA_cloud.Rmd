@@ -21,6 +21,10 @@ output salus files successfully run on the HPC on 12/2/17 to 12/3/17
 
 Update 12/4/17: re-did for lema_historic_auto_v02, which uses the updated .cdb.xml to fix sorghum and has a start DOY of 1 in 2005. rainfed corn also planted less densely
 
+alfalfa added haphazardly
+
+Update 12/8/17: added a patch for soil mukeys missing in teh KS.sdb.xml from Lydia
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/02.52_salus_expt_lema/',
                       cache = FALSE, cache.path='cache/02.52_salus_expt_lema/')
@@ -189,7 +193,7 @@ load(file = paste0(comboDir,'/uniqueExperiments_gmd4p_Sheridan6_top7.RData'))
 # how to break down into xml files? by NLDAS or NLDAS + soil?
 lemaExps2 <- lemaExps %>% 
   mutate(nldas = str_sub(ExpCode, start = 10, end = 13),
-         state = str_sub(ExpCode, start = 1, end = 3),
+         state = str_sub(ExpCode, start = 1, end = 2),
          mukey = str_sub(ExpCode, start = 3, end = 9),
          static = str_sub(ExpCode, start = 1, end = 13),
          ExpCode = as.character(ExpCode))
@@ -203,11 +207,34 @@ lemaExps3 <- lemaExps2 %>%
   mutate(xdbGroup = groups, xdbCode = paste0('X_',xdbGroup))
 ```
 
+### SOIL PATCH
+get a vector of mukeys not int he ks fiel to replace
+
+```{r badSoilds}
+# lydia's list of soil mukeys in ks
+validMukeys <- read_table('S:/Users/deinesji/HPA/Salus/lema/sdbs/KS_Mukey_list.txt',
+                          col_names = FALSE) %>%
+  mutate(mukey = substr(X1, start = 3, stop = 9))
+
+# get missing
+sum(!(lemaExps3$mukey %in% validMukeys$mukey)) # 32 missing mukeys
+
+# replace with most frequent
+majority <- lemaExps3 %>%
+  count(mukey) %>%
+  slice(which.max(n))
+replaceKey <- majority$mukey
+
+lemaExps3[!(lemaExps3$mukey %in% validMukeys$mukey),'mukey'] <- replaceKey
+```
+
+
+
 ## Write the experiment files!
 
 ```{r writeExpts, cache=FALSE}
 # output directory
-OutDir <- 'E:/Jill/salusExperiments/4_lema_historic_fixed_v02'
+OutDir <- 'E:/Jill/salusExperiments/5_lema_historic_fixed_v03'
 cropfile <- 'cropsn29Dec2016_SGttMatrFixed.cdb.xml'
 
 #OutDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/LEMA_historical_autoIrrigation_v01/xdbs'
@@ -227,6 +254,8 @@ for(g in 1:ngroup){
   exp_master <- salustools::makeExperimentTable(runTitle, expt_set$ExpID,
                       expt_set$mukey, expt_set$nldas, expt_set$ExpCode,
                       wheatStart, Nyrs, startDOY, cropfp = cropfile)
+  
+  # SOIL PATCH! 
   
   
   # Write the file! --------------------------------------------------------------
@@ -348,11 +377,11 @@ for(g in 1:ngroup){
 make 1 sh file for each experiment
 
 ```{r hpccSh, cache=FALSE}
-xdbDir <- 'E:/Jill/salusExperiments/4_lema_historic_fixed_v02'
-outDir <- xdbDir
+xdbDir <- OutDir
+xdbOut <- xdbDir
 
-hpcHomeDir <- '/mnt/home/deinesji/salus/4_lema_hist_fixed_v02/'
-hpcOutDir <- '/mnt/home/deinesji/salus/4_lema_hist_fixed_v02/results/'
+hpcHomeDir <- '/mnt/home/deinesji/salus/5_lema_hist_fixed_v03/'
+hpcOutDir <- '/mnt/home/deinesji/salus/5_lema_hist_fixed_v03/results/'
 
 # be mindful of extensions
 sdb <- "KS"
@@ -370,7 +399,7 @@ memory <- '2000mb'
 
 # loop over xdbs
 for (i in 1:length(xdb)){
-  salustools::write_HPC_shell(outDir, hpcHomeDir, hpcOutDir, xdb[i], sdb, wdbZip, DayVars,
+  salustools::write_HPC_shell(xdbOut, hpcHomeDir, hpcOutDir, xdb[i], sdb, wdbZip, DayVars,
                  SeaVars, walltime, memory, cdb = cropfile)
 }  
 ```
@@ -380,7 +409,7 @@ sends the sh files to queue
 
 ```{r hpccbat, cache=FALSE}
 shNames <- paste0(xdb,'.sh')
-fileOut <- paste0(outDir, '/LEMA_hist_fixed_v02.bat')
+fileOut <- paste0(xdbOut, '/LEMA_hist_fixed_v05.bat')
 
 # write out .bat file
 write_HPC_bat(shNames, fileOut)
