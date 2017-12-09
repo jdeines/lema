@@ -2,29 +2,92 @@
 title: "03.50_salus_valid.Rmd"
 author: "Jill Deines"
 date: "December 7, 2017"
-output: html_document
+output: 
+  html_document:
+    toc: yes
 ---
 
+Goal: Compare SALUS output to real world data
+
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.50_5_salus_valid/',
+                      cache = FALSE)
 ```
 
-## R Markdown
+**R Packages Needed**
 
-This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
-
-When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
-
-```{r cars}
-summary(cars)
+```{r packages, warning=FALSE, message=FALSE}
+library(tidyverse)
 ```
 
-## Including Plots
+**Directories and User Variables**
 
-You can also embed plots, for example:
+```{r dirs}
+# directory for cleaned/summarized to annual values salus output
+resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/5_LEMA_hist_fixed_v03/results'
+watervars <- 'WaterVars_meansTotals.csv'
+yieldTotals <- 'yields_meansTotals.csv'
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+# pumping data from Wimas
+welldir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/wellData/WIMAS_AnthonyCleaned_JillFormatted'
+wellsSheridan <- 'WIMAS_Sheridan_1990-2016.csv'
+
+# cdl and irrigated area from gee exports
+tabDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/tabular'
+cdl_sd6 <- 'CDL_SheridanTrace_2006-2016.csv'
+aimName <- 'irrArea_climate_from_AIMRRB.csv'
 ```
 
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+# Combine Water Data
+salus water use, wimas pumping, aim area
+
+```{r waterUse}
+saluswater <- read_csv(paste0(resultsDir,'/',watervars)) %>%
+  mutate(datasource = 'SALUS') 
+
+saluslong <- saluswater %>%
+  dplyr::select(c(year, irr_km3, precip_mm, rch_km3, datasource)) %>%
+  gather(., key = variable, value = value, irr_km3:rch_km3)
+
+aim <- read_csv(paste0(tabDir,'/', aimName)) %>%
+  filter(masterid == 'sheridan6') %>%
+  select(c(year,irrigated_km2)) %>%
+  mutate(datasource = 'AIM') %>%
+  gather(., key = variable, value = value, irrigated_km2)
+
+# summary stats wimas
+wimas <- read_csv(paste0(welldir, '/', wellsSheridan))
+wimasstats <- wimas %>%
+  group_by(year) %>%
+  summarise(irr_m3 = sum(volume_m3, na.rm=TRUE),
+            totalArea_m2 = sum(area_m2, na.rm=TRUE),
+            meanDepth_m = mean(depth_m, na.rm=TRUE)) %>%
+  mutate(irrigated_km2 = totalArea_m2 * 1e-3,
+         irr_km3 = irr_m3 * 1e-6,
+         masterid = 'Sheridan6',
+         datasource = 'WIMAS') %>%
+  select(-c(irr_m3, totalArea_m2, masterid)) %>%
+  gather(.,key = variable, value = value, meanDepth_m:irr_km3)
+
+# combine
+irrigationSummary <- rbind(rbind(saluslong, aim), wimasstats)
+
+# export
+write.csv(irrigationSummary, row.names = FALSE,
+          file = paste0(resultsDir,'/irrigationSummary_salus_wimas_aim.csv'))
+```
+
+## Irrigation Water
+
+```{r irrWater}
+irrwater <- irrigationSummary %>% filter(variable == 'irr_km3' & year >= 2006)
+ggplot(irrwater, aes(x = year, y = value, color=datasource)) +
+  geom_line() + ylab('Irrigation Volume (km^3)') + xlab('') +
+  theme_bw() + ggtitle('Evidence for excessive water use prior to LEMA')
+```
+
+
+
+
+cdl <- read_csv(paste0(tabDir, '/', cdl_sd6))
