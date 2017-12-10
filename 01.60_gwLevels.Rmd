@@ -28,6 +28,216 @@ library(salustools) # from Jill's github, for nqblack theme
 
 ```{r dirs}
 wlDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/waterLevels_Haacker'
-decline <- read_csv(paste0(wlDir,'/TotalVolume_LEMA_Sheridan6.txt'))
 ```
 
+# load data
+and write out master file
+
+```{r load, eval=FALSE}
+# sheridan -----------------------
+s_vol <- read_csv(paste0(wlDir,'/TotalVolume_LEMA_Sheridan6.txt')) %>%
+  mutate(Year = year(dmy_hms(DATETIME)),
+         region = 'Sheridan') %>%
+  dplyr::select(c(Year, region, Vol_km3)) %>%
+  gather(., key = variable, value = value, Vol_km3)
+
+s_wt <- read_csv(paste0(wlDir,'/WTelev_Sheridan6LEMA_Mean.txt')) %>%
+  mutate(Year = year(dmy_hms(DATETIME)),
+         region = 'Sheridan') %>%
+  dplyr::select(c(Year, region, WTelev))%>%
+  gather(., key = variable, value = value, WTelev)
+
+# full gmd4 (whole) ----------------
+g_w_vol <- read_csv(paste0(wlDir,'/TotalVolume_GMD4_Beignet_Whole.txt')) %>%
+  mutate(Year = year(dmy_hms(DATETIME)),
+         region = 'GMD4') %>%
+  dplyr::select(c(Year, region, Vol_km3))%>%
+  gather(., key = variable, value = value, Vol_km3)
+  
+g_w_wt <- read_csv(paste0(wlDir,'/WTelev_GMD4_Beignet_Whole_Mean.txt'))%>%
+  mutate(Year = year(dmy_hms(DATETIME)),
+         region = 'GMD4') %>%
+  dplyr::select(c(Year, region, WTelev))%>%
+  gather(., key = variable, value = value, WTelev)
+  
+# gmd4 minus sherdian (hole) -------------------
+g_h_vol <- read_csv(paste0(wlDir,'/TotalVolume_GMD4_Donut_Hole.txt')) %>%
+    mutate(Year = year(dmy_hms(DATETIME)),
+         region = 'GMD4_hole') %>%
+  dplyr::select(c(Year, region, Vol_km3))%>%
+  gather(., key = variable, value = value, Vol_km3)
+
+g_h_wt <- read_csv(paste0(wlDir,'/WTelev_GMD4_Donut_Hole_Mean.txt')) %>%
+  mutate(Year = year(dmy_hms(DATETIME)),
+         region = 'GMD4_hole') %>%
+  dplyr::select(c(Year, region, WTelev))%>%
+  gather(., key = variable, value = value, WTelev)
+
+
+# one df to rule them all
+gw_df <- do.call("rbind", list(s_vol, s_wt, g_w_vol, g_w_wt, g_h_vol, g_h_wt))
+
+write_csv(gw_df, path = paste0(wlDir, '/20171209_Combined_wt_vol.csv'))
+```
+
+# Water Levels
+
+```{r waterLevels}
+wlDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/waterLevels_Haacker'
+
+# load just Sheridan and the GMD with hole
+masterDF <- read_csv(paste0(wlDir,'/20171209_Combined_wt_vol.csv')) %>%
+  #filter(region != 'GMD4') %>%
+  filter(Year > 2001) 
+
+wt <- masterDF %>% filter(variable == 'WTelev')
+
+#quick plot
+ggplot(wt, aes(x=Year, y = value, color=region)) +
+  geom_line() +
+  facet_wrap(~region, nrow = 3, scale = 'free_y') +
+  theme_nqblack() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+```
+
+## Zoom in on Sheridan
+
+```{r LemaLevels}
+
+
+wt.sheridan <- wt %>% filter(region == 'Sheridan')
+
+# model the trends pre and post lema
+lmdata <- wt.sheridan %>% filter(Year <= 2013)
+
+ggplot(wt.sheridan, aes(x=Year, y = value)) +
+  stat_smooth(data=lmdata, method = 'lm', fullrange = TRUE,
+                col = 'gray50')+
+  geom_abline() + 
+  geom_line(col = 'cornflowerblue', lwd=2)  +
+  geom_vline(xintercept=2013, col='indianred', lty='dashed', lwd = 1.1) +
+  theme_nqblack() + ggtitle('Linear Model by Year') +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+
+```
+
+### Add precip
+
+```{r wlModels, fig.height = 4, fig.width = 5}
+# load soome precip
+ppt <- read.csv('C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/weatherCheckSheridan/Sheridan5_gridmet_meanPrecip_1000_from1990.csv')
+## add ppt to data
+lmdata1 <- merge(lmdata, ppt[,c('year', 'mean')], by.x = 'Year', by.y ='year')
+lmdata1 <- rename(lmdata1, ppt = mean)
+
+
+premod <- lm(value ~ Year + ppt, data = lmdata1)
+# predict using the model
+newdf <- data.frame(Year = 2002:2016,
+                    ppt = ppt[ppt$year > 2001, 'mean'])
+predicted <- as.data.frame(stats::predict(premod, newdata = newdf,
+                                          interval='confidence'))
+predicted$Year <- 2002:2016
+
+
+ggplot(wt.sheridan, aes(x=Year, y = value)) +
+  geom_ribbon(data = predicted, aes(x=Year, y=fit, ymin = lwr, ymax = upr),
+              fill = 'gray70', alpha=.2) +
+  geom_line(col = 'cornflowerblue', lwd=2)  +
+  geom_vline(xintercept=2013, col='indianred', lty='dashed', lwd=1) +
+  ggtitle('WTElev ~ Year + Precip') +  
+  ylab('Water Table Elevation (m)') + xlab('') +
+  theme_nqblack() + ggtitle('Linear Model by Year + Precip') +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+
+
+
+
+# adjust precip for water years ---------------------
+# nm, ppt isn't an important factor in this model - years off
+ppt$yearAdjusted <- ppt$year+1
+
+adj <- merge(lmdata, ppt[,c('yearAdjusted', 'mean')],
+             by.x = 'Year', by.y ='yearAdjusted')
+adj <- rename(adj, ppt = mean)
+
+
+premod_adj <- lm(value ~ Year + ppt, data = adj)
+# predict using the model
+newdf2 <- data.frame(Year = 2002:2016,
+                    ppt = ppt[ppt$yearAdjusted > 2001 &
+                                ppt$yearAdjusted <2017, 'mean'])
+predicted2 <- as.data.frame(stats::predict(premod_adj, newdata = newdf2,
+                                          interval='confidence'))
+predicted2$Year <- 2002:2016
+
+
+ggplot(wt.sheridan, aes(x=Year, y = value)) +
+  geom_ribbon(data = predicted2, aes(x=Year, y=fit, ymin = lwr, ymax = upr),
+              fill = 'gray70', alpha=.2) +
+  geom_line(col = 'cornflowerblue', lwd=2)  +
+  geom_vline(xintercept=2013, col='indianred', lty='dashed', lwd=1.1) +
+  ggtitle('WTElev ~ Year + Adjusted Precp') +
+  ylab('Water Table Elevation (m)') + xlab('') +
+  theme_nqblack() +
+  theme(panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+
+```
+
+Actually, train earlier, predict...
+
+```{r}
+
+```
+
+# Water Volume
+this ends up looking the same as WT Elev
+
+```{r volumes}
+wlDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/waterLevels_Haacker'
+
+# load just Sheridan and the GMD with hole
+masterDF <- read_csv(paste0(wlDir,'/20171209_Combined_wt_vol.csv')) %>%
+  #filter(region != 'GMD4') %>%
+  filter(Year > 2001) 
+
+vol <- masterDF %>% filter(variable == 'Vol_km3')
+
+#quick plot
+ggplot(vol, aes(x=Year, y = value, color=region)) +
+  geom_line() +
+  facet_wrap(~region, nrow = 3, scale = 'free_y') +
+  theme_nqblack() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+```
+
+## Zoom in on Sheridan
+
+```{r LemaVols}
+vol.sheridan <- vol %>% filter(region == 'Sheridan')
+
+# model the trends pre and post lema
+lmdata3 <- vol.sheridan %>% filter(Year <= 2013)
+#lmdata2 <- wt.sheridan %>% filter(Year >= 2013)
+
+#premod <- lm(value ~ Year, data = lmdata)
+#postmod <- lm(value ~ Year, data = lmdata2)
+
+ggplot(vol.sheridan, aes(x=Year, y = value)) +
+    stat_smooth(data=lmdata3, method = 'lm', fullrange = TRUE,
+                col = 'gray88')+
+  geom_line(col = 'cornflowerblue', lwd=2)  +
+  geom_vline(xintercept=2013, col='indianred', lty='dashed', lwd=2) +
+  theme_nqblack() +
+  theme(panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
+
+# get linear predictions
+
+```
