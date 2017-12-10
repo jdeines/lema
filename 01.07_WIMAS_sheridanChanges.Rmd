@@ -1,0 +1,253 @@
+---
+title: "WIMAS changes in use"
+author: "Jill Deines"
+date: "December 9, 2017"
+output: 
+  html_document:
+    toc: yes
+---
+
+Goal: Quantify changes in pumping during LEMA
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/01.07_wimas_changes/',
+                      cache = FALSE)
+```
+
+**R Packages Needed**
+
+**R Packages Needed**
+
+```{r packages, warning=FALSE, message=FALSE}
+library(sf)
+library(tidyverse)
+library(xtable)
+library(lme4)
+```
+
+## Load data files
+Includes formatted data from 01.05 and boundary shapefiles of interest
+
+```{r loadData}
+setwd("C:/Users/adeines/BE_adeines/Personal/Wells for Jill")
+# directories
+gisDir <- 'C:/Users/adeines/BE_adeines/Personal/Wells for Jill/lema'
+wellDir <- 'C:/Users/adeines/BE_adeines/Personal/Wells for Jill/lema'
+
+# well data
+wimas <- read.csv(paste0(wellDir, '/WIMAS_1990-2016_gwPts_ksHpa.csv'))
+
+# boundaries of interest
+sheridan <- st_read(paste0(gisDir,'/Sheridan6_fromKGS_sd6.shp'), quiet=TRUE)
+sheridan$Id <- 'Sheridan'
+
+gmds.ll <- st_read(paste0(gisDir, '/KS - GROUNDWATER_DISTRICTS.shp'),quiet = TRUE)
+KSrrca <- st_read(paste0(gisDir,'/RRCA-KS-upperOnly_aea.shp'),quiet = TRUE)
+```
+
+Normalize projections: let's work in EPSG:5070 to match my GEE work.
+
+Assuming well points are WGS84. That should be checked.
+
+```{r reproject}
+sheridan <- st_transform(sheridan, 5070)
+gmds <- st_transform(gmds.ll, 5070)
+KSrrca <- st_transform(KSrrca, 5070)
+
+# visualize
+plot(gmds[1], main='Some Regions', graticule = st_crs(gmds.ll), axes=TRUE)
+plot(KSrrca, add=TRUE)
+plot(sheridan, add=TRUE)
+
+# spatialize well data
+wimasLL <- st_as_sf(x = wimas,
+                      coords = c('LONGITUDE','LATITUDE'),
+                      crs = "+proj=longlat +datum=WGS84")
+wimas.aea <- st_transform(wimasLL, 5070)
+
+# subset 1 year of points for reasonable plotting
+wimasOne <- wimas.aea[wimas.aea$year == 2000,]
+
+# plot points
+plot(gmds[1], main='WIMAS points', graticule = st_crs(gmds.ll), axes=TRUE)
+plot(wimasOne[1], add=TRUE)
+```
+
+## Regional Trends
+
+### Sheridan 6
+
+* How many wells are there?
+* Can you see the 20% reduction in pumping from the LEMA?
+
+Note: for the moment I'm assume volume is in acre ft.
+
+```{r sheridan1}
+# extract points in sheridan
+wellsLema <- st_join(wimas.aea, sheridan) %>% filter(Id == 'Sheridan')
+
+# how many?
+length(unique(wellsLema$PDIV_ID))
+
+# plot wells
+plot(sheridan[1], main = '222 Wells in Sheridan 6')
+plot(wellsLema[wellsLema$year ==2000,1], add=TRUE, pch = 19,col="red")
+
+lemakey <- data.frame(year = 1990:2016,
+                      LEMA = c(rep('preLema',23), rep('lema',4)))
+
+wellsLema2 <- merge(wellsLema, lemakey)
+
+prepost <- wellsLema2 %>%
+  group_by(LEMA) %>%
+  summarize(meanVol = mean(volume, na.rm=T), 
+            meanAcres = mean(acres, na.rm=T),
+            meanDepth = mean(depth, na.rm=T))
+
+longg <- gather(prepost, key = dataset, value = value, meanVol:meanAcres)
+
+ggplot(longg, aes(x=LEMA, y = value)) + 
+  geom_bar(stat='identity') + facet_wrap(~dataset)
+```
+
+A more nuanced approach: build a linear model to predict LEMA years, and then compare. The purpose of this is to account for precipitation and general trends in decreasing irrigation depths.
+
+Check out trends
+
+```{r sheridanTimeSeries, fig.width=4.5}
+# plot all wells over time
+wellslong <- gather_(wellsLema2, key = 'variable', value = 'value', 
+                     c('acres','volume', 'depth'))
+
+# see acres and volume over time, all wells
+ggplot(wellslong, aes(x=year, y = value)) +
+  geom_line(aes(group = PDIV_ID), lwd=.5) +
+  facet_wrap(~variable, scales = 'free_y', nrow = 3) + 
+  theme_bw() + ggtitle('Sheridan Area, Depth, & Volume over time')
+
+# see acres and volume over time, all wells - boxplot!
+ggplot(wellslong, aes(x=year, y = value)) +
+  geom_boxplot(aes(group=year)) +
+  facet_wrap(~variable, scales = 'free_y', nrow = 3) + 
+  theme_bw() + ggtitle('Sheridan Area, Depth, & Volume over time')
+
+# plot volume vs acres
+ggplot(wellsLema2, aes(x=volume, y=acres, color=year)) +
+  geom_point() + ggtitle('Sheridan volume vs area')
+
+# depth over time
+ggplot(wellsLema2, aes(x=year, y=depth)) +
+  geom_boxplot(aes(group=year)) + ylab('depth (ft)')+
+  ggtitle('Sheridan depth over time')
+
+
+#  total over time
+summed <- wellsLema2 %>%
+  group_by(year) %>%
+  summarize(totalVol = sum(volume, na.rm=T), totalAcres = sum(acres, na.rm=T)) %>%
+  mutate(meandepth = totalVol/totalAcres)
+
+ggplot(summed, aes(x=totalVol, y=totalAcres, color=year)) +
+  geom_point() + ggtitle('Sheridan: Total volume vs total area')
+
+sumLong <- gather(summed, key = variable, value =value, totalVol:meandepth)
+
+ggplot(sumLong, aes(x=year, y = value)) +
+  geom_line() +
+  facet_wrap(~variable, scales = 'free_y', nrow = 3) + 
+  theme_bw() + ggtitle('Sheridan Total Volume & Area over time')
+```
+
+## Time Series
+Is there autocorrelation to worry about?
+
+```{r autocorrelation}
+#Volume
+for (i in unique(wellsLema2$PDIV_ID)){
+  well<-wellsLema2$volume[wellsLema2$PDIV_ID%in%i][-c(1:4)]
+  if(sum(is.na(well))==0) acf(ts(well))
+  readline("enter")
+}
+# Most wells volumes don't show any appreciable autocorrelation, but some do, which is tedious.
+for (i in unique(wellsLema2$PDIV_ID)){
+  well<-diff(wellsLema2$volume[wellsLema2$PDIV_ID%in%i])
+  if(sum(is.na(well))==0) acf(ts(well))
+  readline("enter")
+}
+# No consistant autocorrelation pattern.
+
+#Depth
+for (i in unique(wellsLema2$PDIV_ID)){
+  well<-wellsLema2$depth[wellsLema2$PDIV_ID%in%i]
+  if(sum(is.na(well))==0) acf(ts(well))
+  readline("enter")
+}
+
+````
+
+##Mixed Model
+``` {r mixed model}
+wellsLema2$PDIV_ID<-as.factor(wellsLema2$PDIV_ID)
+wellsLema2$m3_vol<-wellsLema2$volume*1233.48
+wellsLema2$year0<-wellsLema2$year-2012
+wellsLema2_trim<-as.data.frame(wellsLema2[wellsLema2$year>=2002,])
+
+lema_lme00<-lmer(m3_vol~year0+LEMA+(1|PDIV_ID),
+               data=wellsLema2_trim)
+
+lema_lme0<-lmer(m3_vol~year+LEMA+(1|PDIV_ID),
+               data=wellsLema2_trim)
+lema_lme1<-lmer(m3_vol~year+(1|PDIV_ID),
+               data=wellsLema2_trim)
+AIC(lema_lme0,lema_lme1)
+
+ggplot(data=wellsLema2_trim,aes(y=m3_vol,x=year,color=LEMA))+
+         geom_point(alpha=.5)+
+         geom_abline(slope=coef(summary(lema_lme0))["year","Estimate"],
+                     intercept=sum(coef(summary(lema_lme0))["(Intercept)","Estimate"]),
+                     color="red")+
+          geom_abline(slope=coef(summary(lema_lme0))["year","Estimate"],
+                     intercept=sum(coef(summary(lema_lme0))[-2,"Estimate"]),
+                     color="blue")+
+  theme_black()+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+
+
+  
+```
+
+
+```{r with_precip}
+ppt<-read.csv("lema/Sheridan5_gridmet_meanPrecip_1000.csv")
+
+wellsLema2_ppt<-merge(wellsLema2,ppt[,c("year","mean")],by="year")
+names(wellsLema2_ppt)[names(wellsLema2_ppt)=="mean"]<-"mean_ppt"
+
+ggplot(data=wellsLema2_ppt,aes(y=m3_vol,x=mean_ppt,color=year))+
+  geom_point(alpha=.3)+geom_smooth(method="lm")
+ggplot(data=wellsLema2_ppt,aes(y=depth,x=mean_ppt,color=year))+
+  geom_point(alpha=.3)+geom_smooth(method="lm")
+
+wellsLema2_ppt_trim<-as.data.frame(wellsLema2_ppt[wellsLema2_ppt$year>=2006,])
+
+
+lema_lme0_ppt<-lmer(m3_vol~year+LEMA+mean_ppt+(1|PDIV_ID),
+               data=wellsLema2_ppt_trim)
+lema_lme1_ppt<-lmer(m3_vol~year+mean_ppt+(1|PDIV_ID),
+               data=wellsLema2_ppt_trim)
+AIC(lema_lme0,lema_lme1,lema_lme0_ppt,lema_lme1_ppt)
+#lema_lme0_ppt is best by a large margine, LEMA & PPT
+
+
+ggplot(data=wellsLema2_ppt_trim,aes(y=m3_vol,x=year,color=LEMA))+
+         geom_point(alpha=.5)+
+         geom_abline(slope=coef(summary(lema_lme0_ppt))["year","Estimate"],
+                     intercept=sum(coef(summary(lema_lme0_ppt))["(Intercept)","Estimate"]),
+                     color="red")+
+          geom_abline(slope=coef(summary(lema_lme0_ppt))["year","Estimate"],
+                     intercept=sum(coef(summary(lema_lme0_ppt))[-c(2,4),"Estimate"]),
+                     color="blue")
+
+
+
+
