@@ -10,8 +10,8 @@ output:
 Goal: Build SALUS results workflow to process LEMA output back into a spatial grid
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.20_5_salus_results_process/',
-                      cache = FALSE, cache.path='cache/03.20_4_salus_results_lema/')
+knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.20_7_salus_results_process/',
+                      cache = FALSE)
 ```
 
 **R Packages Needed**
@@ -31,12 +31,12 @@ library(salustools)
 
 ```{r dirs}
 # directory for cleaned/summarized to annual values salus output
-resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/5_LEMA_hist_fixed_v03/results'
+resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/7_LEMA_hist_realEst_v02/results'
 # subfolder for maps output
 subf <- 'maps'
 
 # run name
-runname <- '5_lema_historic_fixed_v03'
+runname <- '7_lema_historic_realEst_v02'
 
 # time frame
 startYear <- 2006 # excluding wheat planting, aka first year of harvest

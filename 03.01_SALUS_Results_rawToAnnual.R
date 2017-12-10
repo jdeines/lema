@@ -10,13 +10,13 @@ library(tidyverse)
 
 # arguments
 # raw salus output directory
-scratchDir <- 'F:/Users/deinesji/salusRawResults/5_lema_historic_fixed_v03'
+scratchDir <- 'F:/Users/deinesji/salusRawResults/7_lema_historic_realEst_v02'
 
 # directory for cleaned/summarized output
-outDir <- 'S:/Users/deinesji/HPA/Salus/lema/results/5_lema_hist_fixed_v03'
+outDir <- 'S:/Users/deinesji/HPA/Salus/lema/results/7_lema_hist_realEst_v02'
 
 # run name
-runname <- '5_lema_historic_fixed_v03'
+runname <- '7_lema_historic_realEst_v02'
 
 startYear <- 2006 # excluding wheat planting, aka first year of harvest
 endYear <- 2016
