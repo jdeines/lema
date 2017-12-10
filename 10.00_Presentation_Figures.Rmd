@@ -44,8 +44,9 @@ gisBoundsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundarie
 # Water Levels
 
 ## Sheridan Water Level Changes
+See 01.60_gwLevels.Rmd for figures
 
-```{r process_waterlevels}
+```{r process_waterlevels, eval = FALSE}
 wlDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/waterLevels_Haacker'
 
 # load just Sheridan and the GMD with hole

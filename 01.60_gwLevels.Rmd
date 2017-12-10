@@ -125,7 +125,7 @@ ggplot(wt.sheridan, aes(x=Year, y = value)) +
 
 ### Add precip
 
-```{r wlModels, fig.height = 4, fig.width = 5}
+```{r wlModel, dpi = 400, fig.height = 3, fig.width = 4, dev=c('png','pdf')}
 # load soome precip
 ppt <- read.csv('C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/weatherCheckSheridan/Sheridan5_gridmet_meanPrecip_1000_from1990.csv')
 ## add ppt to data
@@ -144,16 +144,20 @@ predicted$Year <- 2002:2016
 
 ggplot(wt.sheridan, aes(x=Year, y = value)) +
   geom_ribbon(data = predicted, aes(x=Year, y=fit, ymin = lwr, ymax = upr),
-              fill = 'gray70', alpha=.2) +
+              fill = 'gray80', alpha=.3) +
   geom_line(col = 'cornflowerblue', lwd=2)  +
   geom_vline(xintercept=2013, col='indianred', lty='dashed', lwd=1) +
-  ggtitle('WTElev ~ Year + Precip') +  
+  #ggtitle('WTElev ~ Year + Precip') +  
   ylab('Water Table Elevation (m)') + xlab('') +
   theme_nqblack() + ggtitle('Linear Model by Year + Precip') +
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank())
 
 
+
+```
+
+```{r wlModel_yearAdjust, dpi = 400, fig.height = 3, fig.width = 4, dev=c('png','pdf')}
 
 
 # adjust precip for water years ---------------------
@@ -177,16 +181,14 @@ predicted2$Year <- 2002:2016
 
 ggplot(wt.sheridan, aes(x=Year, y = value)) +
   geom_ribbon(data = predicted2, aes(x=Year, y=fit, ymin = lwr, ymax = upr),
-              fill = 'gray70', alpha=.2) +
+              fill = 'gray80', alpha=.3) +
   geom_line(col = 'cornflowerblue', lwd=2)  +
   geom_vline(xintercept=2013, col='indianred', lty='dashed', lwd=1.1) +
-  ggtitle('WTElev ~ Year + Adjusted Precp') +
+  #ggtitle('WTElev ~ Year + Adjusted Precp') +
   ylab('Water Table Elevation (m)') + xlab('') +
   theme_nqblack() +
   theme(panel.grid.major = element_blank(),
         panel.grid.minor = element_blank())
-
-
 ```
 
 Actually, train earlier, predict...
