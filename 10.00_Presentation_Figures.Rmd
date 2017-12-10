@@ -56,9 +56,33 @@ masterDF <- read_csv(paste0(wlDir,'/20171209_Combined_wt_vol.csv')) %>%
 
 # SALUS Output
 
+## irrigation volume
+
+### salus vs wimas
+
+```{r salus_vs_wimas, dpi = 400, fig.height = 3, fig.width = 4, dev=c('png','pdf')}
+
+resultsDir2 <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/5_LEMA_hist_fixed_v03/results'
+irrigationSummary <- read_csv(paste0(resultsDir2,                                     '/irrigationSummary_salus_wimas_aim.csv'))
+
+
+irrwater <- irrigationSummary %>% filter(variable == 'irr_km3' & year >= 2006)
+
+ggplot(irrwater, aes(x = year, y = value, color=datasource)) +
+  geom_line(lwd=1.2) + ylab('Irrigation Volume (km^3)') + xlab('') +
+  geom_vline(xintercept=2013, col='goldenrod2', lty='dashed', lwd=1) +
+  theme_nqblack() + 
+  theme(legend.position='none',
+        axis.text=element_text(size=12),
+        legend.text=element_text(size=10),
+        axis.title=element_text(size=13),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+```
+
 ## Irrigation Maps by Year
 
-```{r irrMaps_nqblack, fig.width = 9, fig.height = 5, dpi = 400}
+```{r irrMaps_nqblack, cache=TRUE, fig.width = 9, fig.height = 5, dpi = 400}
 # load irr rasters
 resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/5_LEMA_hist_fixed_v03/results/maps'
 load(paste0(resultsDir, '/All_Irr_Rch_precip_stacks.RData'))
@@ -74,7 +98,7 @@ pal <- bpy.colors(9)
 labels <- as.character(2006:2016)
 
 # plot
-spplot(irrStack, col.regions = pal, col='gray29',
+spplot(irrStack, col.regions = bpy.colors, col='gray29',
        names.attr=labels, maxpixels = 200000,
        par.settings = list(panel.background=list(col="#262626"),
                            layout.widths=list(right.padding=6))) +
@@ -84,9 +108,16 @@ spplot(irrStack, col.regions = pal, col='gray29',
 grid.text('Irrigation Depth (mm)',x=unit(0.96, "npc"),y=unit(0.5, 'npc'), rot=-90)
 
 # separate legend
+# color ramp
+# image.plot(z=0:18,add=F,legend.only=T,  col=c(backgroundcolor,matlab), 
+#            horizontal = T,
+#           smallplot=c(0.05,.95,.15,.2), 
+#          axis.args=list(at=c(0,3,6,9,12,15,18), 
+#                           labels=as.character(c(0,3,6,9,12,15,18))))
+
 ```
 
-```{r irrMaps_gray, fig.width = 9, fig.height = 5, dpi = 400, background='transparent'}
+```{r irrMaps_gray, cache = TRUE, fig.width = 9, fig.height = 5, dpi = 400, background='transparent'}
 
 pal <- bpy.colors(9)
 
@@ -104,15 +135,7 @@ grid.text('Irrigation Depth (mm)',x=unit(0.96, "npc"),y=unit(0.5, 'npc'), rot=-9
 
 
 
-## irrigation volume
 
-```{r irrWater, eval=FALSE}
-irrigationSummary <- read_csv(paste0(resultsDir,                                     '/irrigationSummary_salus_wimas_aim.csv'))
-irrwater <- irrigationSummary %>% filter(variable == 'irr_km3' & year >= 2006)
-ggplot(irrwater, aes(x = year, y = value, color=datasource)) +
-  geom_line() + ylab('Irrigation Volume (km^3)') + xlab('') +
-  theme_bw()
-```
 
 
 
@@ -136,26 +159,6 @@ palMax <- .6
 
 spplot(decline, col.regions=(biPal))
 
-       
-# without borders
-spplot(freq2, col.regions = c(backgroundcolor,matlab), maxpixels = 2000000,
-       sp.layout=list(scale, text1, text2), #, arrow), 
-       par.settings=list(axis.line=list(col=NA)), 
-       #scales = list(draw=T),
-       colorkey=F)#list(labels=list(cex=1.2),
-                  #at = c(0:18))
-
-
-
-
-#levelplot(freq2, col.regions=c(backgroundcolor,matlab), axes=F)
-
-# color ramp
-image.plot(z=0:18,add=F,legend.only=T,  col=c(backgroundcolor,matlab), 
-           horizontal = T,
-          smallplot=c(0.05,.95,.15,.2), 
-         axis.args=list(at=c(0,3,6,9,12,15,18), 
-                          labels=as.character(c(0,3,6,9,12,15,18))))
 ```
 
 
