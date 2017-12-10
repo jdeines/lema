@@ -125,7 +125,7 @@ ggplot(wt.sheridan, aes(x=Year, y = value)) +
 
 ### Add precip
 
-```{r wlModel, dpi = 400, fig.height = 3, fig.width = 4, dev=c('png','pdf')}
+```{r wlModel_notAdj, dpi = 400, fig.height = 3, fig.width = 4, dev=c('png','pdf')}
 # load soome precip
 ppt <- read.csv('C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/weather/weatherCheckSheridan/Sheridan5_gridmet_meanPrecip_1000_from1990.csv')
 ## add ppt to data
@@ -149,7 +149,7 @@ ggplot(wt.sheridan, aes(x=Year, y = value)) +
   geom_vline(xintercept=2013, col='indianred', lty='dashed', lwd=1) +
   #ggtitle('WTElev ~ Year + Precip') +  
   ylab('Water Table Elevation (m)') + xlab('') +
-  theme_nqblack() + ggtitle('Linear Model by Year + Precip') +
+  theme_nqblack() +
   theme(panel.grid.major = element_blank(), 
         panel.grid.minor = element_blank())
 
