@@ -11,14 +11,14 @@ Goal: make figures for AGU 2017 presentation
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/10.00_PresFigs/',
-                      cache = TRUE, cache.path='cache/10.00_PresFigs/')
+                      cache = FALSE)
 ```
 
 **R Packages Needed**
 
 ```{r packages, warning=FALSE, message=FALSE}
 library(raster)
-
+library(rgdal)
 library(grid)
 library(colorRamps)
 library(fields)
@@ -38,7 +38,7 @@ library(lubridate)
 **Directories**
 
 ```{r dirs}
-resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/5_LEMA_hist_fixed_v03/results/maps'
+gisBoundsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries' 
 ```
 
 # Water Levels
@@ -54,10 +54,71 @@ masterDF <- read_csv(paste0(wlDir,'/20171209_Combined_wt_vol.csv')) %>%
   filter(Year > 2001) 
 ```
 
+# SALUS Output
+
+## Irrigation Maps by Year
+
+```{r irrMaps_nqblack, fig.width = 9, fig.height = 5, dpi = 400}
+# load irr rasters
+resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/5_LEMA_hist_fixed_v03/results/maps'
+load(paste0(resultsDir, '/All_Irr_Rch_precip_stacks.RData'))
+
+# reproject rasters?
+
+# load Sheridan Lema bound (for under plotting - fill roads at "0")
+lema <- readOGR(gisBoundsDir, 'Sheridan6_fromKGS_sd6', verbose = FALSE)
+lema.proj <- spTransform(lema, CRS(proj4string(irrStack)))
+
+# plot specs
+pal <- bpy.colors(9)
+labels <- as.character(2006:2016)
+
+# plot
+spplot(irrStack, col.regions = pal, col='gray29',
+       names.attr=labels, maxpixels = 200000,
+       par.settings = list(panel.background=list(col="#262626"),
+                           layout.widths=list(right.padding=6))) +
+  latticeExtra::layer(sp.polygons(lema.proj, fill = pal[1], col=NA), under=T)
+
+# legend title
+grid.text('Irrigation Depth (mm)',x=unit(0.96, "npc"),y=unit(0.5, 'npc'), rot=-90)
+
+# separate legend
+```
+
+```{r irrMaps_gray, fig.width = 9, fig.height = 5, dpi = 400, background='transparent'}
+
+pal <- bpy.colors(9)
+
+# plot
+spplot(irrStack, col.regions = bpy.colors, col='gray29',
+       names.attr=labels, maxpixels = 200000,
+       par.settings = list(panel.background=list(col="gray65"),
+                           layout.widths=list(right.padding=6))) +
+  latticeExtra::layer(sp.polygons(lema.proj, fill = pal[1], col=NA), under=T)
+
+# legend title
+grid.text('Irrigation Depth (mm)',x=unit(0.96, "npc"),y=unit(0.5, 'npc'), rot=-90)
+```
+
+
+
+
+## irrigation volume
+
+```{r irrWater, eval=FALSE}
+irrigationSummary <- read_csv(paste0(resultsDir,                                     '/irrigationSummary_salus_wimas_aim.csv'))
+irrwater <- irrigationSummary %>% filter(variable == 'irr_km3' & year >= 2006)
+ggplot(irrwater, aes(x = year, y = value, color=datasource)) +
+  geom_line() + ylab('Irrigation Volume (km^3)') + xlab('') +
+  theme_bw()
+```
+
+
 
 ## HPA Depletion
 
-```{r hpa_depletion}
+```{r hpa_depletion, eval=FALSE}
 wlDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/waterLevels_Haacker'
 decline <- raster(paste0(wlDir,'/percent_decline_3m_sat_thick_set_100_clip.img'))
 
@@ -97,25 +158,5 @@ image.plot(z=0:18,add=F,legend.only=T,  col=c(backgroundcolor,matlab),
                           labels=as.character(c(0,3,6,9,12,15,18))))
 ```
 
-
-# SALUS Output
-
-## Irrigation Maps by Year
-
-```{r irrMaps}
-# load irr rasters
-load(paste0(resultsDir, '/All_Irr_Rch_precip_stacks.RData'))
-```
-
-## irrigation volume
-
-```{r irrWater}
-irrigationSummary <- read_csv(paste0(resultsDir,
-                                     '/irrigationSummary_salus_wimas_aim.csv'))
-irrwater <- irrigationSummary %>% filter(variable == 'irr_km3' & year >= 2006)
-ggplot(irrwater, aes(x = year, y = value, color=datasource)) +
-  geom_line() + ylab('Irrigation Volume (km^3)') + xlab('') +
-  theme_bw()
-```
 
 
