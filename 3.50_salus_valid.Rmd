@@ -9,6 +9,8 @@ output:
 
 Goal: Compare SALUS output to real world data
 
+Update 12/9/2017: the "salus optimum run" (50% soil threshold, 25 mm application) is compared to 2 scenarios trying to get cloers to real world irrigation pre-LEMA
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.50_5_salus_valid/',
                       cache = FALSE)
@@ -18,6 +20,9 @@ knitr::opts_chunk$set(echo = TRUE, fig.path='figure/03.50_5_salus_valid/',
 
 ```{r packages, warning=FALSE, message=FALSE}
 library(tidyverse)
+# library(devtools)
+#devtools::install_github("jdeines/salustools")
+library(salustools)
 ```
 
 **Directories and User Variables**
@@ -52,7 +57,7 @@ saluslong <- saluswater %>%
 
 aim <- read_csv(paste0(tabDir,'/', aimName)) %>%
   filter(masterid == 'sheridan6') %>%
-  select(c(year,irrigated_km2)) %>%
+  dplyr::select(c(year,irrigated_km2)) %>%
   mutate(datasource = 'AIM') %>%
   gather(., key = variable, value = value, irrigated_km2)
 
@@ -67,7 +72,7 @@ wimasstats <- wimas %>%
          irr_km3 = irr_m3 * 1e-6,
          masterid = 'Sheridan6',
          datasource = 'WIMAS') %>%
-  select(-c(irr_m3, totalArea_m2, masterid)) %>%
+  dplyr::select(-c(irr_m3, totalArea_m2, masterid)) %>%
   gather(.,key = variable, value = value, meanDepth_m:irr_km3)
 
 # combine
@@ -76,6 +81,23 @@ irrigationSummary <- rbind(rbind(saluslong, aim), wimasstats)
 # export
 write.csv(irrigationSummary, row.names = FALSE,
           file = paste0(resultsDir,'/irrigationSummary_salus_wimas_aim.csv'))
+```
+
+## Irrigated Area
+
+```{r irrArea}
+irrArea <- irrigationSummary %>% filter(variable == 'irrigated_km2')
+ggplot(irrArea, aes(x = year, y = value, color=datasource)) +
+  geom_line() + ylim(0, 125) +
+  ylab('Irrigation Area (km^2)') + xlab('') +
+  theme_bw() + ggtitle('Irrigated Area Comparison')
+
+ggplot(irrArea[irrArea$year > 2005,], aes(x = year, y = value,
+                            color=datasource)) +
+  geom_line() +# ylim(0, 125) +
+  ylab('Irrigation Area (km^2)') + xlab('') +
+  #theme_bw() + 
+  ggtitle('Irrigated Area Comparison')
 ```
 
 ## Irrigation Water
@@ -87,20 +109,64 @@ ggplot(irrwater, aes(x = year, y = value, color=datasource)) +
   theme_bw() + ggtitle('Evidence for excessive water use prior to LEMA')
 ```
 
-## Irrigated Area
+### Compare with real world estimate scenarios
 
-```{r irrArea}
-irrArea <- irrigationSummary %>% filter(variable == 'irrigated_km2')
-ggplot(irrArea, aes(x = year, y = value, color=datasource)) +
-  geom_line() + ylim(-0, 125) +
-  ylab('Irrigation Area (km^2)') + xlab('') +
-  theme_bw() + ggtitle('Irrigated Area Comparison')
+Load scenarios
 
-ggplot(irrArea[irrArea$year > 2005,], aes(x = year, y = value, color=datasource)) +
-  geom_line() + ylim(-0, 125) +
-  ylab('Irrigation Area (km^2)') + xlab('') +
-  theme_bw() + ggtitle('Irrigated Area Comparison')
+```{r loadScenarios}
+# directory for cleaned/summarized to annual values salus output
+resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/6_LEMA_hist_realEst_v01/results'
+watervars_80p <- 'WaterVars_meansTotals.csv'
+
+salus_80p <- read_csv(paste0(resultsDir,'/',watervars_80p)) %>%
+  mutate(datasource = 'SALUS_80p') 
+
+salus_80p_long <- salus_80p %>%
+  dplyr::select(c(year, irr_km3, precip_mm, rch_km3, datasource)) %>%
+  gather(., key = variable, value = value, irr_km3:rch_km3)
+
+# directory for cleaned/summarized to annual values salus output
+resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/7_LEMA_hist_realEst_v02/results'
+watervars_50mm <- 'WaterVars_meansTotals.csv'
+
+salus_50mm <- read_csv(paste0(resultsDir,'/',watervars_50mm)) %>%
+  mutate(datasource = 'SALUS_50mm') 
+
+salus_50mm_long <- salus_50mm %>%
+  dplyr::select(c(year, irr_km3, precip_mm, rch_km3, datasource)) %>%
+  gather(., key = variable, value = value, irr_km3:rch_km3)
 ```
+
+Combine and plot
+
+```{r irrigationScenarios}
+irrigationSummary2 <- do.call('rbind',list(irrigationSummary, salus_50mm_long,
+                                           salus_80p_long))
+
+irrwater2 <- irrigationSummary2 %>% filter(variable == 'irr_km3' & year >= 2006)
+ggplot(irrwater2, aes(x = year, y = value, color=datasource)) +
+  geom_line() + ylab('Irrigation Volume (km^3)') + xlab('') +
+  theme_bw() + ggtitle('First attempts at Real Estimate')
+```
+
+Increasing the application amount by 100% from 25 mm to 50 mm was waaaayyy too much. Using an 80% threshold wasn't bad.
+
+Focus on the 80% soil water threshold
+
+```{r irrScenarios2}
+irrwater3 <- irrwater2 %>% filter(datasource != 'SALUS_50mm')
+ggplot(irrwater3, aes(x = year, y = value, color=datasource)) +
+  geom_line() + ylab('Irrigation Volume (km^3)') + xlab('') +
+  #theme_nqblack() + 
+  ggtitle('80% SWC threshold not too bad...')
+
+
+```
+
+
+
+
+
 
 
 

@@ -26,28 +26,54 @@ library(RColorBrewer)
 #library(latticeExtra)
 library(viridis)
 #library(rasterVis)
+
+#library(devtools)
+#install_github("jdeines/salustools")
+library(salustools) # for nqblack ggplot theme
+
+library(tidyverse)
+library(lubridate)
 ```
 
-# SALUS Output
+**Directories**
 
-## Irrigation Maps by Year
-
-```{r irrMaps}
-# load irr rasters
+```{r dirs}
 resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/5_LEMA_hist_fixed_v03/results/maps'
-load(paste0(resultsDir, '/All_Irr_Rch_precip_stacks.RData'))
 ```
 
+# Water Levels
 
-# Background Figures
+## Sheridan Water Level Changes
+
+```{r process_waterlevels}
+wlDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/waterLevels_Haacker'
+
+# load just Sheridan and the GMD with hole
+masterDF <- read_csv(paste0(wlDir,'/20171209_Combined_wt_vol.csv')) %>%
+  #filter(region != 'GMD4') %>%
+  filter(Year > 2001) 
+```
+
 
 ## HPA Depletion
 
 ```{r hpa_depletion}
-rasDir <- 'S:/Users/deinesji/HPA/gis/WaterTableHaacker/ChangeFrom1935_'
-wlchange <- raster(paste0(rasDir,'/WLchange_2016_clip2.tif'))
+wlDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/waterLevels_Haacker'
+decline <- raster(paste0(wlDir,'/percent_decline_3m_sat_thick_set_100_clip.img'))
 
-spplot(wlchange, col.regions=colorRamp()
+# col ramps
+# blue and red color ramps pulled from color brewer (no white)
+redRamp2 <- colorRampPalette(c('#fddbc7','#f4a582','#d6604d','#b2182b','#67001f'))
+blueRamp2 <- colorRampPalette(rev(c('#d1e5f0','#92c5de','#4393c3','#2166ac','#053061')))
+
+colorbreaks <- 200
+biPal <- c(blueRamp2(colorbreaks/2),redRamp2(colorbreaks/2))
+
+# scale range
+palMin <- -.6
+palMax <- .6 
+
+spplot(decline, col.regions=(biPal))
 
        
 # without borders
@@ -70,4 +96,26 @@ image.plot(z=0:18,add=F,legend.only=T,  col=c(backgroundcolor,matlab),
          axis.args=list(at=c(0,3,6,9,12,15,18), 
                           labels=as.character(c(0,3,6,9,12,15,18))))
 ```
+
+
+# SALUS Output
+
+## Irrigation Maps by Year
+
+```{r irrMaps}
+# load irr rasters
+load(paste0(resultsDir, '/All_Irr_Rch_precip_stacks.RData'))
+```
+
+## irrigation volume
+
+```{r irrWater}
+irrigationSummary <- read_csv(paste0(resultsDir,
+                                     '/irrigationSummary_salus_wimas_aim.csv'))
+irrwater <- irrigationSummary %>% filter(variable == 'irr_km3' & year >= 2006)
+ggplot(irrwater, aes(x = year, y = value, color=datasource)) +
+  geom_line() + ylab('Irrigation Volume (km^3)') + xlab('') +
+  theme_bw()
+```
+
 
