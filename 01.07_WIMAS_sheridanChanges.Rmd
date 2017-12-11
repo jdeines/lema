@@ -85,7 +85,7 @@ for (i in unique(wellsLema2$PDIV_ID)){
 ````
 
 ##Mixed Model
-``` {r mixed model}
+```{r mixed_model, dpi = 400, fig.height = 3, fig.width = 4, dev=c('png','pdf')}
 wellsLema2$PDIV_ID<-as.factor(wellsLema2$PDIV_ID)
 wellsLema2$m3_vol<-wellsLema2$volume*1233.48
 wellsLema2$year0<-wellsLema2$year-2012
@@ -111,7 +111,7 @@ ggplot(data=wellsLema2_trim,aes(y=m3_vol/1000,x=year,color=LEMA))+
                       xend=2016.5,
                       yend=predict(lema_lme0,
                          newdata=data.frame(year=2016.5,LEMA="lema"),re.form=NA)/1000,
-                      color="indianred",lwd=1.2)+
+                      color="indianred",lwd=1.2, linetype = 4)+
          geom_segment(x=2002,
                       y=predict(lema_lme0,
                          newdata=data.frame(year=2002,LEMA="preLema"),re.form=NA)/1000,
@@ -127,9 +127,11 @@ ggplot(data=wellsLema2_trim,aes(y=m3_vol/1000,x=year,color=LEMA))+
                          newdata=data.frame(year=2016.5,LEMA="preLema"),re.form=NA)/1000,
                       color="cornflowerblue",linetype=4,lwd=1.2)+
   ylab("Volume (1000m^3)")+
-  xlab("Year")+
+  xlab("")+
   theme_nqblack()+
-  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank())
+  theme(legend.position = 'none',
+        panel.grid.major = element_blank(), 
+        panel.grid.minor = element_blank())
 
 lema_lme00
 1-134322.1/(37686.9+134322.1)
@@ -181,7 +183,14 @@ ggplot(data=wellsLema2_ppt_trim,aes(y=m3_vol,x=year,color=LEMA))+
                      color="red")+
           geom_abline(slope=coef(summary(lema_lme0_ppt))["year","Estimate"],
                      intercept=sum(coef(summary(lema_lme0_ppt))[-c(2,4),"Estimate"]),
-                     color="blue")
+                     color="blue") +
+  theme_nqblack() +
+    theme(legend.position='none',
+        axis.text=element_text(size=12),
+        legend.text=element_text(size=10),
+        axis.title=element_text(size=13),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
 ```
 
 
