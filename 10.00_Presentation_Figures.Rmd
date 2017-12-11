@@ -140,6 +140,21 @@ grid.text('Irrigation Depth (mm)',x=unit(0.96, "npc"),y=unit(0.5, 'npc'), rot=-9
 ```
 
 
+```{r irrMaps_gray_2007_3r, cache = TRUE, fig.width = 9.8, fig.height = 5.2, dpi = 400, background='transparent'}
+
+pal <- bpy.colors(9)
+cacheDummy <- 6
+# plot
+spplot(irrStack.proj, col.regions = bpy.colors, col='gray29',
+       names.attr=labels, maxpixels = 200000, 
+       par.settings = list(panel.background=list(col="gray65"),
+                           layout.widths=list(right.padding=6))) +
+  latticeExtra::layer(sp.polygons(lema.proj, fill = pal[1], col=NA), under=T)
+
+# legend title
+grid.text('Irrigation Depth (mm)',x=unit(0.96, "npc"),y=unit(0.5, 'npc'), rot=-90)
+```
+
 
 
 ## Lema WT changes
