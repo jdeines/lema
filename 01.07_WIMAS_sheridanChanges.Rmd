@@ -53,6 +53,17 @@ longg <- gather(prepost, key = dataset, value = value, meanVol:meanAcres)
 
 ggplot(longg, aes(x=LEMA, y = value)) + 
   geom_bar(stat='identity') + facet_wrap(~dataset)
+
+# plot changes with distributions
+plotme <- wellsLema2 %>%
+  filter(year > 2001) %>%
+  group_by(LEMA,year) %>%
+  summarize(totVol = mean(volume, na.rm=T), 
+            meanAcres = mean(acres, na.rm=T),
+            meanDepth = mean(depth, na.rm=T))
+
+ggplot(plotme %>% filter(dataset !=), aes(x=LEMA, y = value)) +
+  geom_boxplot() + facet_wrap(~dataset)
 ```
 
 
@@ -111,7 +122,7 @@ ggplot(data=wellsLema2_trim,aes(y=m3_vol/1000,x=year,color=LEMA))+
                       xend=2016.5,
                       yend=predict(lema_lme0,
                          newdata=data.frame(year=2016.5,LEMA="lema"),re.form=NA)/1000,
-                      color="indianred",lwd=1.2, linetype = 4)+
+                      color="indianred",lwd=1.2)+
          geom_segment(x=2002,
                       y=predict(lema_lme0,
                          newdata=data.frame(year=2002,LEMA="preLema"),re.form=NA)/1000,
@@ -125,7 +136,7 @@ ggplot(data=wellsLema2_trim,aes(y=m3_vol/1000,x=year,color=LEMA))+
                       xend=2016.5,
                       yend=predict(lema_lme0,
                          newdata=data.frame(year=2016.5,LEMA="preLema"),re.form=NA)/1000,
-                      color="cornflowerblue",linetype=4,lwd=1.2)+
+                      color="cornflowerblue",linetype='dashed',lwd=1.2)+
   ylab("Volume (1000m^3)")+
   xlab("")+
   theme_nqblack()+
