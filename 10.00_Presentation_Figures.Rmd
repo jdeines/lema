@@ -83,14 +83,16 @@ ggplot(irrwater, aes(x = year, y = value, color=datasource)) +
 
 ## Irrigation Maps by Year
 
-```{r irrMaps_nqblack, cache=TRUE, fig.width = 9, fig.height = 5, dpi = 400}
+```{r irrMaps_nqblack_2007, cache=TRUE, fig.width = 10, fig.height = 5, dpi = 400}
 # load irr rasters
 resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/5_LEMA_hist_fixed_v03/results/maps'
 load(paste0(resultsDir, '/All_Irr_Rch_precip_stacks.RData'))
 
+irrStack_2007 <- irrStack[[2:11]]
+
 # reproject rasters?
 classProj <- '+proj=aea +lat_1=20 +lat_2=60 +lat_0=40 +lon_0=-101 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +ellps=GRS80 +towgs84=0,0,0'
-irrStack.proj <- projectRaster(irrStack, crs = CRS(classProj))
+irrStack.proj <- projectRaster(irrStack_2007, crs = CRS(classProj))
 
 # load Sheridan Lema bound (for under plotting - fill roads at "0")
 lema <- readOGR(gisBoundsDir, 'Sheridan6_fromKGS_sd6', verbose = FALSE)
@@ -99,11 +101,12 @@ lema.proj <- spTransform(lema, CRS(proj4string(irrStack.proj)))
 
 # plot specs
 pal <- bpy.colors(9)
-labels <- as.character(2006:2016)
+labels <- as.character(2007:2016)
+cacheDummy <- 8
 
 # plot
 spplot(irrStack.proj, col.regions = bpy.colors, col='gray29',
-       names.attr=labels, maxpixels = 200000,
+       names.attr=labels, maxpixels = 200000,layout = c(5,2),
        par.settings = list(panel.background=list(col="#262626"),
                            layout.widths=list(right.padding=6))) +
   latticeExtra::layer(sp.polygons(lema.proj, fill = pal[1], col=NA), under=T)
@@ -121,13 +124,13 @@ grid.text('Irrigation Depth (mm)',x=unit(0.96, "npc"),y=unit(0.5, 'npc'), rot=-9
 
 ```
 
-```{r irrMaps_gray, cache = TRUE, fig.width = 9, fig.height = 5, dpi = 400, background='transparent'}
+```{r irrMaps_gray_2007, cache = TRUE, fig.width = 10, fig.height = 5, dpi = 400, background='transparent'}
 
 pal <- bpy.colors(9)
-
+cacheDummy <- 6
 # plot
 spplot(irrStack.proj, col.regions = bpy.colors, col='gray29',
-       names.attr=labels, maxpixels = 200000,
+       names.attr=labels, maxpixels = 200000, layout = c(5,2),
        par.settings = list(panel.background=list(col="gray65"),
                            layout.widths=list(right.padding=6))) +
   latticeExtra::layer(sp.polygons(lema.proj, fill = pal[1], col=NA), under=T)
