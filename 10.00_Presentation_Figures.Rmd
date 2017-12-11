@@ -89,17 +89,20 @@ resultsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experimen
 load(paste0(resultsDir, '/All_Irr_Rch_precip_stacks.RData'))
 
 # reproject rasters?
+classProj <- '+proj=aea +lat_1=20 +lat_2=60 +lat_0=40 +lon_0=-101 +x_0=0 +y_0=0 +datum=NAD83 +units=m +no_defs +ellps=GRS80 +towgs84=0,0,0'
+irrStack.proj <- projectRaster(irrStack, crs = CRS(classProj))
 
 # load Sheridan Lema bound (for under plotting - fill roads at "0")
 lema <- readOGR(gisBoundsDir, 'Sheridan6_fromKGS_sd6', verbose = FALSE)
-lema.proj <- spTransform(lema, CRS(proj4string(irrStack)))
+lema.proj <- spTransform(lema, CRS(proj4string(irrStack.proj)))
+#lema.proj <- spTransform(lema, CRS(classProj))
 
 # plot specs
 pal <- bpy.colors(9)
 labels <- as.character(2006:2016)
 
 # plot
-spplot(irrStack, col.regions = bpy.colors, col='gray29',
+spplot(irrStack.proj, col.regions = bpy.colors, col='gray29',
        names.attr=labels, maxpixels = 200000,
        par.settings = list(panel.background=list(col="#262626"),
                            layout.widths=list(right.padding=6))) +
@@ -123,7 +126,7 @@ grid.text('Irrigation Depth (mm)',x=unit(0.96, "npc"),y=unit(0.5, 'npc'), rot=-9
 pal <- bpy.colors(9)
 
 # plot
-spplot(irrStack, col.regions = bpy.colors, col='gray29',
+spplot(irrStack.proj, col.regions = bpy.colors, col='gray29',
        names.attr=labels, maxpixels = 200000,
        par.settings = list(panel.background=list(col="gray65"),
                            layout.widths=list(right.padding=6))) +
@@ -136,8 +139,16 @@ grid.text('Irrigation Depth (mm)',x=unit(0.96, "npc"),y=unit(0.5, 'npc'), rot=-9
 
 
 
+## Lema WT changes
+Change in LEMA water table prior to LEMA (1996-2012)
 
+```{r lemaWT}
+wlDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/waterLevels_Haacker'
+wt <- raster(paste0(wlDir,'/','WTelevDiff_2012-1996_clip.tif'))
+proj4string(wt)
 
+spplot(wt, draw=T)
+```
 
 
 ## HPA Depletion
