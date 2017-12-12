@@ -41,6 +41,97 @@ library(lubridate)
 gisBoundsDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/GIS/boundaries' 
 ```
 
+
+# water use - wimas
+what was the volume reduction between 2002-2012 and LEMA?
+
+
+```{r wimasDrop, dpi = 400, fig.height = 3, fig.width = 4, dev=c('png','pdf')}
+# load data
+welldir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/wellData/WIMAS_AnthonyCleaned_JillFormatted'
+wellsSheridan <- 'WIMAS_Sheridan_1990-2016.csv'
+# get annual sums and means
+wimas <- read_csv(paste0(welldir, '/', wellsSheridan))
+wimasstats <- wimas %>%
+  group_by(year) %>%
+  summarise(irr_m3 = sum(volume_m3, na.rm=TRUE),
+            totalArea_m2 = sum(area_m2, na.rm=TRUE),
+            meanDepth_m = mean(depth_m, na.rm=TRUE)) %>%
+  mutate(irrigated_km2 = totalArea_m2 * 1e-6,
+         irr_km3 = irr_m3 * 1e-6,
+         masterid = 'Sheridan6',
+         datasource = 'WIMAS') %>%
+  dplyr::select(-c(irr_m3, totalArea_m2, masterid)) %>%
+  gather(.,key = variable, value = value, meanDepth_m:irr_km3)
+
+# plots
+annualIrrigation <- wimasstats %>% filter(variable == 'irr_km3' & year > 2001)
+annualIrrigation$period <- c(rep('before',11),rep('lema',4))
+
+
+
+ggplot(annualIrrigation,
+       aes(x=year, y = value, group = period, color=period)) +
+  geom_boxplot() + geom_point() + ylim(0,45) +
+  theme_nqblack() + xlab("") + ylab('Total Irrigation Volume')+
+  ggtitle('36% reduction')+
+    theme(legend.position='none',
+        axis.text=element_text(size=12),
+        legend.text=element_text(size=10),
+        axis.title=element_text(size=13),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+# get difference
+means <- annualIrrigation %>%
+  group_by(period) %>%
+  summarize(mean = mean(value))
+
+# percent reduction
+(1 - (means[means$period == 'lema','mean']/means[means$period == 'before','mean'])) * 100
+  
+```
+
+###Add irrigation
+I'm curious about the relative changes in irrigated area
+
+```{r irrChange,dpi = 400, fig.height = 3, fig.width = 4, dev=c('png','pdf')}
+tabDir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/tabular'
+cdl_sd6 <- 'CDL_SheridanTrace_2006-2016.csv'
+aimName <- 'irrArea_climate_from_AIMRRB.csv'
+
+aim <- read_csv(paste0(tabDir,'/', aimName)) %>%
+  filter(masterid == 'sheridan6') %>%
+  dplyr::select(c(year,irrigated_km2)) %>%
+  mutate(datasource = 'AIM') %>%
+  gather(., key = variable, value = value, irrigated_km2) %>%
+  filter(year > 2001 & year != 2006) %>%
+  mutate(period = c(rep('before',10),rep('lema',4)))
+
+ggplot(aim,
+       aes(x=year, y = value, group = period, color=period)) +
+  geom_boxplot() + geom_point() + 
+  theme_nqblack() + xlab("") + ylab('Total Irrigation Area')+
+  ggtitle('')+ ylim(0, 120) + ggtitle('9% increase') +
+    theme(legend.position='none',
+        axis.text=element_text(size=12),
+        legend.text=element_text(size=10),
+        axis.title=element_text(size=13),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank())
+
+# get difference
+means <- aim %>%
+  group_by(period) %>%
+  summarize(mean = mean(value))
+
+# percent reduction
+(1 - (means[means$period == 'lema','mean']/means[means$period == 'before','mean'])) * 100
+
+```
+
+
+
 # Water Levels
 
 ## Sheridan Water Level Changes
@@ -61,13 +152,13 @@ masterDF <- read_csv(paste0(wlDir,'/20171209_Combined_wt_vol.csv')) %>%
 
 ### salus vs wimas
 
-```{r salus_vs_wimas, dpi = 400, fig.height = 3, fig.width = 4, dev=c('png','pdf')}
+```{r salus_vs_wimas_2007, dpi = 400, fig.height = 3, fig.width = 4, dev=c('png','pdf')}
 
 resultsDir2 <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/salus/experiments/5_LEMA_hist_fixed_v03/results'
 irrigationSummary <- read_csv(paste0(resultsDir2,                                     '/irrigationSummary_salus_wimas_aim.csv'))
 
 
-irrwater <- irrigationSummary %>% filter(variable == 'irr_km3' & year >= 2006)
+irrwater <- irrigationSummary %>% filter(variable == 'irr_km3' & year >= 2007)
 
 ggplot(irrwater, aes(x = year, y = value, color=datasource)) +
   geom_line(lwd=1.2) + ylab('Irrigation Volume (km^3)') + xlab('') +
