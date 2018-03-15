@@ -99,3 +99,21 @@ write.csv(longdata, row.names = FALSE,
           file = paste0(outdir,'/WIMAS_1990-2016_gwPts_ksHpa.csv'))
 ```
 
+## Export a shapefile too
+
+```{r exportShape, eval=FALSE}
+# reload data
+outdir <- 'C:/Users/deinesji/Dropbox/1PhdJill/hpa/LEMAs/data/wellData/WIMAS_AnthonyCleaned_JillFormatted'
+longdata <- read.csv(paste0(outdir,'/WIMAS_1990-2016_gwPts_ksHpa.csv'))
+
+# spatialize, in NAD 27
+longpoints <- st_as_sf(longdata, coords=c('LONGITUDE','LATITUDE'), crs = 4267)
+
+# plot
+test <- longpoints[longpoints$year == 2000,]
+plot(test[1])
+
+# export
+write_sf(longpoints, paste0(outdir,'/WIMAS_1990-2016_gwPts_ksHpa.shp'))
+```
+
